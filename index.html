@@ -213,6 +213,35 @@
     margin-top: auto;
   }
 
+  /* Coming-soon items (price not yet set) */
+  .soba-list {
+    display: flex;
+    flex-direction: column;
+    padding: 6px 16px 16px;
+  }
+
+  .soba-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+  }
+
+  .soba-row:last-child { border-bottom: none; }
+
+  .soba-tbd {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    background: var(--surface-sunken);
+    padding: 3px 10px;
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+
   /* Cart */
   .cart-list {
     display: flex;
@@ -547,6 +576,15 @@
   <section>
     <div class="section-label">商品をタップ</div>
     <div class="products" id="products"></div>
+  </section>
+
+  <section>
+    <div class="section-label">そば商品(価格未定・準備中)</div>
+    <div class="soba-list">
+      <div class="soba-row"><span>生そば</span><span class="soba-tbd">価格未定</span></div>
+      <div class="soba-row"><span>干しそば</span><span class="soba-tbd">価格未定</span></div>
+      <div class="soba-row"><span>そばセット</span><span class="soba-tbd">価格未定</span></div>
+    </div>
   </section>
 
   <section>
