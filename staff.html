@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>店員用ページ | きよらのおだし レジ</title>
+<meta name="theme-color" content="#FAF5EC" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1B1610" media="(prefers-color-scheme: dark)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
+<style>
+  :root {
+    --bg: #FAF5EC;
+    --surface: #FFFFFF;
+    --surface-sunken: #F1E8D8;
+    --line: #E5D9C3;
+    --text: #2E2519;
+    --text-muted: #8A7A64;
+    --accent: #B8792E;
+    --accent-strong: #96601F;
+    --accent-tint: #F3E1C4;
+    --good: #3D7A5C;
+    --good-tint: #DCEEE3;
+    --warn: #B4432E;
+    --warn-tint: #F7DFD8;
+    --shadow: 0 2px 8px rgba(60, 40, 10, 0.08);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1B1610;
+      --surface: #262019;
+      --surface-sunken: #201A14;
+      --line: #3A3122;
+      --text: #F1E7D8;
+      --text-muted: #A99880;
+      --accent: #E0A94D;
+      --accent-strong: #F0BE6C;
+      --accent-tint: #3A2C15;
+      --good: #6FBE97;
+      --good-tint: #1E3227;
+      --warn: #E08069;
+      --warn-tint: #3A2018;
+      --shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #1B1610;
+    --surface: #262019;
+    --surface-sunken: #201A14;
+    --line: #3A3122;
+    --text: #F1E7D8;
+    --text-muted: #A99880;
+    --accent: #E0A94D;
+    --accent-strong: #F0BE6C;
+    --accent-tint: #3A2C15;
+    --good: #6FBE97;
+    --good-tint: #1E3227;
+    --warn: #E08069;
+    --warn-tint: #3A2018;
+    --shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    overscroll-behavior-y: contain;
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Zen Kaku Gothic New", "Hiragino Sans", sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden;
+  }
+
+  button, a.back-link {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .app {
+    max-width: 520px;
+    margin: 0 auto;
+    padding: calc(16px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) calc(32px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left));
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 4px 2px 0;
+  }
+
+  header h1 {
+    font-family: "Zen Maru Gothic", sans-serif;
+    font-weight: 900;
+    font-size: 1.2rem;
+    margin: 0;
+    letter-spacing: 0.01em;
+    text-wrap: balance;
+  }
+
+  .back-link {
+    display: inline-block;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--accent-strong);
+    text-decoration: none;
+    padding: 6px 2px;
+  }
+
+  section {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    box-shadow: var(--shadow);
+  }
+
+  .section-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    padding: 14px 16px 0;
+    text-transform: uppercase;
+  }
+
+  .ghost-chip-btn {
+    appearance: none;
+    border: 1px solid var(--line);
+    background: var(--surface-sunken);
+    color: var(--text);
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.75rem;
+    padding: 8px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .ghost-chip-btn:active { background: var(--accent-tint); }
+
+  .goal-body, .float-body {
+    padding: 14px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .goal-row, .float-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .goal-row .label, .float-row .label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-muted);
+  }
+
+  .goal-row .value, .float-row .value {
+    font-family: "Zen Maru Gothic", sans-serif;
+    font-variant-numeric: tabular-nums;
+    font-weight: 900;
+    font-size: 1.2rem;
+    color: var(--text);
+    margin-right: auto;
+    margin-left: 4px;
+  }
+
+  .float-row.drawer-row .value {
+    color: var(--accent-strong);
+    font-size: 1.35rem;
+  }
+
+  .progress-track {
+    height: 10px;
+    border-radius: 999px;
+    background: var(--surface-sunken);
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    border-radius: 999px;
+    transition: width 0.3s ease, background 0.3s ease;
+  }
+
+  .progress-fill.achieved { background: var(--good); }
+
+  .goal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .goal-badge {
+    font-weight: 700;
+    color: var(--good);
+    font-size: 0.78rem;
+    background: var(--good-tint);
+    padding: 4px 10px;
+    border-radius: 999px;
+  }
+
+  .history-summary {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 12px 16px 0;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .history-summary .sum {
+    font-family: "Zen Maru Gothic", sans-serif;
+    font-weight: 900;
+    font-size: 1.1rem;
+    color: var(--text);
+  }
+
+  .history-list {
+    display: flex;
+    flex-direction: column;
+    max-height: 360px;
+    overflow-y: auto;
+    padding: 10px 6px;
+    margin: 4px 10px 0;
+  }
+
+  .history-empty {
+    padding: 18px 10px 22px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+  }
+
+  .history-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .history-row:last-child { border-bottom: none; }
+
+  .history-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .history-time {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+  }
+
+  .history-items {
+    font-size: 0.78rem;
+    color: var(--text);
+    overflow-wrap: anywhere;
+  }
+
+  .history-total {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+  }
+
+  .history-clear-btn {
+    appearance: none;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 12px 16px 14px;
+    cursor: pointer;
+    width: 100%;
+    text-align: center;
+  }
+
+  .history-clear-btn:active { color: var(--warn); }
+
+  footer {
+    text-align: center;
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    padding-top: 4px;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header>
+    <h1>店員用ページ</h1>
+    <a class="back-link" href="index.html">← レジに戻る</a>
+  </header>
+
+  <section>
+    <div class="section-label">本日の売上目標</div>
+    <div class="goal-body">
+      <div class="goal-row">
+        <span class="label">目標金額</span>
+        <span class="value" id="targetAmount">¥0</span>
+        <button class="ghost-chip-btn" id="editTargetBtn">変更</button>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <div class="goal-footer">
+        <span id="progressText">¥0</span>
+        <span class="goal-badge" id="goalBadge" hidden>🎉 目標達成</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-label">準備金・レジ内金額</div>
+    <div class="float-body">
+      <div class="float-row">
+        <span class="label">準備金(開始時点)</span>
+        <span class="value" id="floatAmount">¥0</span>
+        <button class="ghost-chip-btn" id="editFloatBtn">変更</button>
+      </div>
+      <div class="float-row drawer-row">
+        <span class="label">レジ内想定金額</span>
+        <span class="value" id="drawerAmount">¥0</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-label">取引履歴</div>
+    <div class="history-summary">
+      <span><span id="historyCount">0件</span>・本日の売上</span>
+      <span class="sum" id="historySum">¥0</span>
+    </div>
+    <div class="history-list" id="historyList"></div>
+    <button class="history-clear-btn" id="clearHistoryBtn">履歴をクリア</button>
+  </section>
+
+  <footer>この端末のブラウザ内だけに保存されるデータです(レジと同じ端末で見てください)</footer>
+</div>
+
+<script>
+  const STORAGE_KEYS = {
+    float: 'kiyoraRegi_openingFloat',
+    target: 'kiyoraRegi_salesTarget',
+    history: 'kiyoraRegi_history',
+  };
+
+  let openingFloat = Number(localStorage.getItem(STORAGE_KEYS.float)) || 0;
+  let salesTarget = Number(localStorage.getItem(STORAGE_KEYS.target)) || 0;
+  let history = [];
+  try {
+    history = JSON.parse(localStorage.getItem(STORAGE_KEYS.history) || '[]');
+  } catch (e) {
+    history = [];
+  }
+
+  const yen = (n) => '¥' + n.toLocaleString('ja-JP');
+
+  const floatAmountEl = document.getElementById('floatAmount');
+  const drawerAmountEl = document.getElementById('drawerAmount');
+  const targetAmountEl = document.getElementById('targetAmount');
+  const progressFillEl = document.getElementById('progressFill');
+  const progressTextEl = document.getElementById('progressText');
+  const goalBadgeEl = document.getElementById('goalBadge');
+  const historyListEl = document.getElementById('historyList');
+  const historyCountEl = document.getElementById('historyCount');
+  const historySumEl = document.getElementById('historySum');
+
+  function todaysSalesTotal() {
+    return history.reduce((sum, h) => sum + h.total, 0);
+  }
+
+  function saveFloat() { localStorage.setItem(STORAGE_KEYS.float, String(openingFloat)); }
+  function saveTarget() { localStorage.setItem(STORAGE_KEYS.target, String(salesTarget)); }
+  function saveHistory() { localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(history)); }
+
+  function renderFloat() {
+    floatAmountEl.textContent = yen(openingFloat);
+    drawerAmountEl.textContent = yen(openingFloat + todaysSalesTotal());
+  }
+
+  function renderGoal() {
+    const sales = todaysSalesTotal();
+    targetAmountEl.textContent = yen(salesTarget);
+    if (salesTarget > 0) {
+      const pct = Math.min(100, Math.round((sales / salesTarget) * 100));
+      progressFillEl.style.width = pct + '%';
+      progressTextEl.textContent = `${yen(sales)} / ${yen(salesTarget)}`;
+      const achieved = sales >= salesTarget;
+      progressFillEl.classList.toggle('achieved', achieved);
+      goalBadgeEl.hidden = !achieved;
+    } else {
+      progressFillEl.style.width = '0%';
+      progressFillEl.classList.remove('achieved');
+      progressTextEl.textContent = yen(sales);
+      goalBadgeEl.hidden = true;
+    }
+  }
+
+  function renderHistory() {
+    if (history.length === 0) {
+      historyListEl.innerHTML = '<div class="history-empty">まだ会計履歴はありません</div>';
+    } else {
+      historyListEl.innerHTML = history.slice().reverse().map(h => {
+        const itemsText = h.items.map(it => `${it.tag}${it.name.replace('きよらのおだし ', '')}×${it.qty}`).join('、');
+        return `
+          <div class="history-row">
+            <div class="history-main">
+              <span class="history-time">${h.time}</span>
+              <span class="history-items">${itemsText}</span>
+            </div>
+            <span class="history-total">${yen(h.total)}</span>
+          </div>
+        `;
+      }).join('');
+    }
+    historyCountEl.textContent = history.length + '件';
+    historySumEl.textContent = yen(todaysSalesTotal());
+    renderFloat();
+    renderGoal();
+  }
+
+  document.getElementById('editFloatBtn').addEventListener('click', () => {
+    const input = window.prompt('準備金(レジ開始時点の金額)を入力してください', String(openingFloat));
+    if (input === null) return;
+    const val = parseInt(input.replace(/[^0-9]/g, ''), 10);
+    if (!isNaN(val) && val >= 0) {
+      openingFloat = val;
+      saveFloat();
+      renderFloat();
+    }
+  });
+
+  document.getElementById('editTargetBtn').addEventListener('click', () => {
+    const input = window.prompt('本日の売上目標金額を入力してください', String(salesTarget));
+    if (input === null) return;
+    const val = parseInt(input.replace(/[^0-9]/g, ''), 10);
+    if (!isNaN(val) && val >= 0) {
+      salesTarget = val;
+      saveTarget();
+      renderGoal();
+    }
+  });
+
+  document.getElementById('clearHistoryBtn').addEventListener('click', () => {
+    if (history.length === 0) return;
+    if (!window.confirm('取引履歴をすべて削除します。よろしいですか?')) return;
+    history = [];
+    saveHistory();
+    renderHistory();
+  });
+
+  renderHistory();
+</script>
+</body>
+</html>
