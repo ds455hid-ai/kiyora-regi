@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>きよらのおだし レジ</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="おだしレジ">
+<meta name="theme-color" content="#FAF5EC" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1B1610" media="(prefers-color-scheme: dark)">
+<link id="appleTouchIcon" rel="apple-touch-icon">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
+<style>
+  :root {
+    --bg: #FAF5EC;
+    --surface: #FFFFFF;
+    --surface-sunken: #F1E8D8;
+    --line: #E5D9C3;
+    --text: #2E2519;
+    --text-muted: #8A7A64;
+    --accent: #B8792E;
+    --accent-strong: #96601F;
+    --accent-tint: #F3E1C4;
+    --good: #3D7A5C;
+    --good-tint: #DCEEE3;
+    --warn: #B4432E;
+    --warn-tint: #F7DFD8;
+    --shadow: 0 2px 8px rgba(60, 40, 10, 0.08);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1B1610;
+      --surface: #262019;
+      --surface-sunken: #201A14;
+      --line: #3A3122;
+      --text: #F1E7D8;
+      --text-muted: #A99880;
+      --accent: #E0A94D;
+      --accent-strong: #F0BE6C;
+      --accent-tint: #3A2C15;
+      --good: #6FBE97;
+      --good-tint: #1E3227;
+      --warn: #E08069;
+      --warn-tint: #3A2018;
+      --shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #1B1610;
+    --surface: #262019;
+    --surface-sunken: #201A14;
+    --line: #3A3122;
+    --text: #F1E7D8;
+    --text-muted: #A99880;
+    --accent: #E0A94D;
+    --accent-strong: #F0BE6C;
+    --accent-tint: #3A2C15;
+    --good: #6FBE97;
+    --good-tint: #1E3227;
+    --warn: #E08069;
+    --warn-tint: #3A2018;
+    --shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    overscroll-behavior-y: contain;
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Zen Kaku Gothic New", "Hiragino Sans", sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden;
+  }
+
+  button {
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .app {
+    max-width: 520px;
+    margin: 0 auto;
+    padding: calc(16px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) calc(32px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left));
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 4px 2px 0;
+  }
+
+  header h1 {
+    font-family: "Zen Maru Gothic", sans-serif;
+    font-weight: 900;
+    font-size: 1.3rem;
+    margin: 0;
+    letter-spacing: 0.01em;
+    text-wrap: balance;
+  }
+
+  header .sub {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  section {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    box-shadow: var(--shadow);
+  }
+
+  .section-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    padding: 14px 16px 0;
+    text-transform: uppercase;
+  }
+
+  /* Product grid: left column = レギュラー, right column = 無化調 */
+  .products {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: repeat(3, auto);
+    grid-auto-flow: column;
+    gap: 10px;
+    padding: 12px 14px 16px;
+  }
+
+  .product-btn {
+    appearance: none;
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--line);
+    background: var(--surface-sunken);
+    color: var(--text);
+    border-radius: 14px;
+    padding: 12px 10px;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 84px;
+    transition: transform 0.08s ease, background 0.15s ease, border-color 0.15s ease;
+    font-family: inherit;
+  }
+
+  .product-btn:active {
+    transform: scale(0.96);
+    background: var(--accent-tint);
+    border-color: var(--accent);
+  }
+
+  .product-btn.variant-std {
+    border-left-color: var(--accent);
+  }
+
+  .product-btn.variant-nc {
+    border-left-color: var(--good);
+  }
+
+  .product-btn .variant-tag {
+    font-size: 0.62rem;
+    font-weight: 700;
+    align-self: flex-start;
+    padding: 2px 7px;
+    border-radius: 999px;
+    letter-spacing: 0.03em;
+  }
+
+  .variant-std .variant-tag {
+    color: var(--accent-strong);
+    background: var(--accent-tint);
+  }
+
+  .variant-nc .variant-tag {
+    color: var(--good);
+    background: var(--good-tint);
+  }
+
+  .product-btn .name {
+    font-size: 0.86rem;
+    font-weight: 700;
+    line-height: 1.3;
+    text-wrap: balance;
+  }
+
+  .product-btn .price {
+    font-family: "Zen Maru Gothic", sans-serif;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--accent-strong);
+    margin-top: auto;
+  }
+
+  /* Cart */
+  .cart-list {
+    display: flex;
+    flex-direction: column;
+    padding: 6px 6px 4px;
+  }
+
+  .cart-empty {
+    padding: 22px 16px 26px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+  }
+
+  .cart-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .cart-row:last-child { border-bottom: none; }
+
+  .cart-row .item-name {
+    font-size: 0.82rem;
+    font-weight: 500;
+    line-height: 1.3;
+  }
+
+  .cart-row .item-unit {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    display: block;
+    margin-top: 2px;
+  }
+
+  .qty-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .qty-control button {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: var(--surface-sunken);
+    color: var(--text);
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .qty-control button:active { background: var(--accent-tint); }
+
+  .qty-control .qty-num {
+    min-width: 1.4em;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    font-size: 0.85rem;
+  }
+
+  .cart-row .row-subtotal {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    font-size: 0.88rem;
+    min-width: 4.4em;
+    text-align: right;
+  }
+
+  /* Total */
+  .total-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 14px 16px 16px;
+    border-top: 1px dashed var(--line);
+    margin-top: 4px;
+  }
+
+  .total-bar .label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-muted);
+  }
+
+  .total-bar .amount {
+    font-family: "Zen Maru Gothic", sans-serif;
+    font-variant-numeric: tabular-nums;
+    font-weight: 900;
+    font-size: 1.9rem;
+    color: var(--text);
+  }
+
+  /* Cash / change */
+  .cash-body {
+    padding: 14px 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .keypad-display {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    background: var(--surface-sunken);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+
+  .keypad-display .yen {
+    font-weight: 700;
+    color: var(--text-muted);
+    font-size: 1.1rem;
+  }
+
+  .keypad-display .value {
+    font-family: "Zen Maru Gothic", sans-serif;
+    font-variant-numeric: tabular-nums;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .keypad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .keypad button {
+    appearance: none;
+    border: 1px solid var(--line);
+    background: var(--surface-sunken);
+    color: var(--text);
+    border-radius: 12px;
+    padding: 16px 0;
+    font-family: "Zen Maru Gothic", sans-serif;
+    font-variant-numeric: tabular-nums;
+    font-size: 1.2rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .keypad button:active { background: var(--accent-tint); }
+
+  .keypad button.keypad-back {
+    color: var(--warn);
+    font-family: inherit;
+    font-size: 0.95rem;
+  }
+
+  .keypad-reset-btn {
+    appearance: none;
+    border: 1px solid var(--line);
+    background: none;
+    color: var(--text-muted);
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.85rem;
+    padding: 12px 16px;
+    border-radius: 12px;
+    cursor: pointer;
+    width: 100%;
+  }
+
+  .keypad-reset-btn:active { background: var(--surface-sunken); }
+
+  .received-display {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .received-display .label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-muted);
+  }
+
+  .received-display .amount {
+    font-family: "Zen Maru Gothic", sans-serif;
+    font-variant-numeric: tabular-nums;
+    font-weight: 900;
+    font-size: 1.5rem;
+    color: var(--text);
+  }
+
+  .quick-cash {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+
+  .quick-cash button {
+    appearance: none;
+    border: 1px solid var(--line);
+    background: var(--surface-sunken);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 10px 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    font-family: inherit;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+  }
+
+  .quick-cash button:active { background: var(--accent-tint); }
+
+  .cash-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .cash-actions button {
+    flex: 1;
+    appearance: none;
+    border: 1px solid var(--line);
+    background: var(--surface-sunken);
+    color: var(--text);
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.8rem;
+    padding: 11px;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+
+  .cash-actions button:active { background: var(--accent-tint); }
+
+  .change-result {
+    border-radius: 14px;
+    padding: 14px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--good-tint);
+  }
+
+  .change-result.warn { background: var(--warn-tint); }
+
+  .change-result .label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--good);
+  }
+
+  .change-result.warn .label { color: var(--warn); }
+
+  .change-result .amount {
+    font-family: "Zen Maru Gothic", sans-serif;
+    font-variant-numeric: tabular-nums;
+    font-weight: 900;
+    font-size: 1.6rem;
+    color: var(--good);
+  }
+
+  .change-result.warn .amount { color: var(--warn); }
+
+  .reset-btn {
+    appearance: none;
+    border: 1px solid var(--line);
+    background: none;
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 13px;
+    border-radius: 12px;
+    cursor: pointer;
+  }
+
+  .reset-btn:active { background: var(--surface-sunken); }
+
+  footer {
+    text-align: center;
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    padding-top: 4px;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header>
+    <h1>きよらのおだし レジ</h1>
+    <span class="sub">小国郷</span>
+  </header>
+
+  <section>
+    <div class="section-label">商品をタップ</div>
+    <div class="products" id="products"></div>
+  </section>
+
+  <section>
+    <div class="section-label">会計内容</div>
+    <div class="cart-list" id="cartList"></div>
+    <div class="total-bar">
+      <span class="label">合計</span>
+      <span class="amount" id="totalAmount">¥0</span>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-label">お預かり金額</div>
+    <div class="cash-body">
+      <div class="received-display">
+        <span class="label">お預かり合計</span>
+        <span class="amount" id="receivedAmount">¥0</span>
+      </div>
+      <div class="quick-cash">
+        <button data-add="10000">¥10,000</button>
+        <button data-add="5000">¥5,000</button>
+        <button data-add="1000">¥1,000</button>
+        <button data-add="500">¥500</button>
+        <button data-add="100">¥100</button>
+        <button data-add="50">¥50</button>
+        <button data-add="10">¥10</button>
+      </div>
+      <div class="keypad-display">
+        <span class="yen">¥</span>
+        <span class="value" id="keypadValue">0</span>
+      </div>
+      <div class="keypad">
+        <button data-num="7">7</button>
+        <button data-num="8">8</button>
+        <button data-num="9">9</button>
+        <button data-num="4">4</button>
+        <button data-num="5">5</button>
+        <button data-num="6">6</button>
+        <button data-num="1">1</button>
+        <button data-num="2">2</button>
+        <button data-num="3">3</button>
+        <button data-num="00">00</button>
+        <button data-num="0">0</button>
+        <button class="keypad-back" id="keypadBack">⌫</button>
+      </div>
+      <button class="keypad-reset-btn" id="keypadResetBtn">入力をリセット</button>
+      <div class="cash-actions">
+        <button id="exactBtn">ぴったり</button>
+        <button id="clearCashBtn">お預かりをクリア</button>
+      </div>
+      <div class="change-result" id="changeResult">
+        <span class="label" id="changeLabel">おつり</span>
+        <span class="amount" id="changeAmount">¥0</span>
+      </div>
+    </div>
+  </section>
+
+  <button class="reset-btn" id="resetBtn">会計をクリア</button>
+
+  <footer>データは保存されません・端末内のみで動作</footer>
+</div>
+
+<script>
+  const PRODUCTS = [
+    { id: 'std10', variant: 'std', tag: '標準', name: 'きよらのおだし 10包入', price: 724 },
+    { id: 'std30', variant: 'std', tag: '標準', name: 'きよらのおだし 30包入', price: 1728 },
+    { id: 'std50', variant: 'std', tag: '標準', name: 'きよらのおだし 50包入', price: 2160 },
+    { id: 'nc10', variant: 'nc', tag: '無化調', name: 'きよらのおだし 10包入', price: 950 },
+    { id: 'nc30', variant: 'nc', tag: '無化調', name: 'きよらのおだし 30包入', price: 2138 },
+    { id: 'nc50', variant: 'nc', tag: '無化調', name: 'きよらのおだし 50包入', price: 2808 },
+  ];
+
+  const cart = {};
+  let receivedCash = 0;
+
+  const yen = (n) => '¥' + n.toLocaleString('ja-JP');
+
+  const productsEl = document.getElementById('products');
+  const cartListEl = document.getElementById('cartList');
+  const totalAmountEl = document.getElementById('totalAmount');
+  const keypadValueEl = document.getElementById('keypadValue');
+  const receivedAmountEl = document.getElementById('receivedAmount');
+  const changeResult = document.getElementById('changeResult');
+  const changeLabel = document.getElementById('changeLabel');
+  const changeAmount = document.getElementById('changeAmount');
+
+  function renderProducts() {
+    productsEl.innerHTML = PRODUCTS.map(p => `
+      <button class="product-btn variant-${p.variant}" data-id="${p.id}">
+        <span class="variant-tag">${p.tag}</span>
+        <span class="name">${p.name}</span>
+        <span class="price">${yen(p.price)}</span>
+      </button>
+    `).join('');
+  }
+
+  function getTotal() {
+    return PRODUCTS.reduce((sum, p) => sum + (cart[p.id] || 0) * p.price, 0);
+  }
+
+  function renderCart() {
+    const items = PRODUCTS.filter(p => cart[p.id] > 0);
+    if (items.length === 0) {
+      cartListEl.innerHTML = '<div class="cart-empty">商品をタップすると会計に追加されます</div>';
+    } else {
+      cartListEl.innerHTML = items.map(p => {
+        const qty = cart[p.id];
+        return `
+          <div class="cart-row">
+            <div class="item-name">${p.name}<span class="item-unit">${p.tag} ・ ${yen(p.price)}</span></div>
+            <div class="qty-control">
+              <button data-dec="${p.id}" aria-label="減らす">−</button>
+              <span class="qty-num">${qty}</span>
+              <button data-inc="${p.id}" aria-label="増やす">＋</button>
+            </div>
+            <div class="row-subtotal">${yen(qty * p.price)}</div>
+          </div>
+        `;
+      }).join('');
+    }
+    totalAmountEl.textContent = yen(getTotal());
+    renderChange();
+  }
+
+  function renderReceived() {
+    receivedAmountEl.textContent = yen(receivedCash);
+    renderChange();
+  }
+
+  function renderChange() {
+    const total = getTotal();
+    const diff = receivedCash - total;
+    if (receivedCash === 0 && total > 0) {
+      changeResult.classList.remove('warn');
+      changeLabel.textContent = 'おつり';
+      changeAmount.textContent = yen(0);
+      return;
+    }
+    if (diff < 0) {
+      changeResult.classList.add('warn');
+      changeLabel.textContent = '不足';
+      changeAmount.textContent = yen(Math.abs(diff));
+    } else {
+      changeResult.classList.remove('warn');
+      changeLabel.textContent = 'おつり';
+      changeAmount.textContent = yen(diff);
+    }
+  }
+
+  productsEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('.product-btn');
+    if (!btn) return;
+    const id = btn.dataset.id;
+    cart[id] = (cart[id] || 0) + 1;
+    renderCart();
+  });
+
+  cartListEl.addEventListener('click', (e) => {
+    const incId = e.target.closest('[data-inc]')?.dataset.inc;
+    const decId = e.target.closest('[data-dec]')?.dataset.dec;
+    if (incId) {
+      cart[incId] = (cart[incId] || 0) + 1;
+    } else if (decId) {
+      cart[decId] = Math.max(0, (cart[decId] || 0) - 1);
+    } else {
+      return;
+    }
+    renderCart();
+  });
+
+  let keypadValue = '0';
+  let autoAddTimer = null;
+  const AUTO_ADD_DELAY = 800;
+
+  function renderKeypad() {
+    keypadValueEl.textContent = Number(keypadValue).toLocaleString('ja-JP');
+  }
+
+  function commitTypedCash() {
+    clearTimeout(autoAddTimer);
+    const typed = parseInt(keypadValue, 10) || 0;
+    if (typed > 0) {
+      receivedCash += typed;
+      keypadValue = '0';
+      renderKeypad();
+      renderReceived();
+    }
+  }
+
+  function scheduleAutoAdd() {
+    clearTimeout(autoAddTimer);
+    autoAddTimer = setTimeout(commitTypedCash, AUTO_ADD_DELAY);
+  }
+
+  document.querySelectorAll('.keypad button[data-num]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const digit = btn.dataset.num;
+      keypadValue = keypadValue === '0' ? (digit === '00' ? '0' : digit) : keypadValue + digit;
+      if (keypadValue.length > 7) keypadValue = keypadValue.slice(0, 7);
+      renderKeypad();
+      scheduleAutoAdd();
+    });
+  });
+
+  document.getElementById('keypadBack').addEventListener('click', () => {
+    keypadValue = keypadValue.length > 1 ? keypadValue.slice(0, -1) : '0';
+    renderKeypad();
+    if (keypadValue === '0') {
+      clearTimeout(autoAddTimer);
+    } else {
+      scheduleAutoAdd();
+    }
+  });
+
+  document.getElementById('keypadResetBtn').addEventListener('click', () => {
+    clearTimeout(autoAddTimer);
+    keypadValue = '0';
+    renderKeypad();
+  });
+
+  document.querySelectorAll('.quick-cash button[data-add]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      commitTypedCash();
+      receivedCash += parseInt(btn.dataset.add, 10);
+      renderReceived();
+    });
+  });
+
+  document.getElementById('exactBtn').addEventListener('click', () => {
+    clearTimeout(autoAddTimer);
+    receivedCash = getTotal();
+    keypadValue = '0';
+    renderKeypad();
+    renderReceived();
+  });
+
+  document.getElementById('clearCashBtn').addEventListener('click', () => {
+    clearTimeout(autoAddTimer);
+    receivedCash = 0;
+    keypadValue = '0';
+    renderKeypad();
+    renderReceived();
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    clearTimeout(autoAddTimer);
+    Object.keys(cart).forEach(k => delete cart[k]);
+    receivedCash = 0;
+    keypadValue = '0';
+    renderCart();
+    renderKeypad();
+    renderReceived();
+  });
+
+  renderProducts();
+  renderCart();
+
+  (function generateHomeScreenIcon() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 180;
+    canvas.height = 180;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#B8792E';
+    ctx.fillRect(0, 0, 180, 180);
+    ctx.fillStyle = '#FFFDF8';
+    ctx.font = '900 92px "Hiragino Sans", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('だ', 90, 100);
+    document.getElementById('appleTouchIcon').setAttribute('href', canvas.toDataURL('image/png'));
+  })();
+</script>
+</body>
+</html>
