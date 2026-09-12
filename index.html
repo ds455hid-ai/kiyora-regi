@@ -28,6 +28,8 @@
     --good-tint: #DCEEE3;
     --warn: #B4432E;
     --warn-tint: #F7DFD8;
+    --soba: #4A6B8A;
+    --soba-tint: #DCE6ED;
     --shadow: 0 2px 8px rgba(60, 40, 10, 0.08);
   }
 
@@ -46,6 +48,8 @@
       --good-tint: #1E3227;
       --warn: #E08069;
       --warn-tint: #3A2018;
+      --soba: #8FB4D6;
+      --soba-tint: #1E2C36;
       --shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
     }
   }
@@ -64,6 +68,8 @@
     --good-tint: #1E3227;
     --warn: #E08069;
     --warn-tint: #3A2018;
+    --soba: #8FB4D6;
+    --soba-tint: #1E2C36;
     --shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
   }
 
@@ -178,6 +184,10 @@
     border-left-color: var(--good);
   }
 
+  .product-btn.variant-soba {
+    border-left-color: var(--soba);
+  }
+
   .product-btn .variant-tag {
     font-size: 0.62rem;
     font-weight: 700;
@@ -197,6 +207,18 @@
     background: var(--good-tint);
   }
 
+  .variant-soba .variant-tag {
+    color: var(--soba);
+    background: var(--soba-tint);
+  }
+
+  .products-soba {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 12px 14px 16px;
+  }
+
   .product-btn .name {
     font-size: 0.86rem;
     font-weight: 700;
@@ -213,34 +235,29 @@
     margin-top: auto;
   }
 
-  /* Coming-soon items (price not yet set) */
-  .soba-list {
+  /* Manual entry (custom price) */
+  .manual-body {
+    padding: 14px 16px 18px;
     display: flex;
     flex-direction: column;
-    padding: 6px 16px 16px;
+    gap: 12px;
   }
 
-  .soba-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--line);
-    color: var(--text-muted);
-    font-size: 0.85rem;
-  }
-
-  .soba-row:last-child { border-bottom: none; }
-
-  .soba-tbd {
-    font-size: 0.72rem;
+  .manual-add-btn {
+    appearance: none;
+    border: 1px solid var(--accent);
+    background: var(--accent-tint);
+    color: var(--accent-strong);
+    font-family: inherit;
     font-weight: 700;
-    color: var(--text-muted);
-    background: var(--surface-sunken);
-    padding: 3px 10px;
-    border-radius: 999px;
-    flex-shrink: 0;
+    font-size: 0.95rem;
+    padding: 13px 16px;
+    border-radius: 12px;
+    cursor: pointer;
+    width: 100%;
   }
+
+  .manual-add-btn:active { background: var(--accent); color: #FFFDF8; }
 
   /* Cart */
   .cart-list {
@@ -574,16 +591,37 @@
   </header>
 
   <section>
-    <div class="section-label">商品をタップ</div>
+    <div class="section-label">きよらのおだし</div>
     <div class="products" id="products"></div>
   </section>
 
   <section>
-    <div class="section-label">そば商品(価格未定・準備中)</div>
-    <div class="soba-list">
-      <div class="soba-row"><span>生そば</span><span class="soba-tbd">価格未定</span></div>
-      <div class="soba-row"><span>干しそば</span><span class="soba-tbd">価格未定</span></div>
-      <div class="soba-row"><span>そばセット</span><span class="soba-tbd">価格未定</span></div>
+    <div class="section-label">そば商品</div>
+    <div class="products-soba" id="productsSoba"></div>
+  </section>
+
+  <section>
+    <div class="section-label">その他(手入力で追加)</div>
+    <div class="manual-body">
+      <div class="keypad-display">
+        <span class="yen">¥</span>
+        <span class="value" id="manualValue">0</span>
+      </div>
+      <div class="keypad">
+        <button data-manual-num="7">7</button>
+        <button data-manual-num="8">8</button>
+        <button data-manual-num="9">9</button>
+        <button data-manual-num="4">4</button>
+        <button data-manual-num="5">5</button>
+        <button data-manual-num="6">6</button>
+        <button data-manual-num="1">1</button>
+        <button data-manual-num="2">2</button>
+        <button data-manual-num="3">3</button>
+        <button data-manual-num="00">00</button>
+        <button data-manual-num="0">0</button>
+        <button class="keypad-back" id="manualBack">⌫</button>
+      </div>
+      <button class="manual-add-btn" id="manualAddBtn">この金額の商品を会計に追加</button>
     </div>
   </section>
 
@@ -651,12 +689,16 @@
 
 <script>
   const PRODUCTS = [
-    { id: 'std10', variant: 'std', tag: 'レギュラー', name: 'きよらのおだし 10包入', price: 730 },
-    { id: 'std30', variant: 'std', tag: 'レギュラー', name: 'きよらのおだし 30包入', price: 1730 },
-    { id: 'std50', variant: 'std', tag: 'レギュラー', name: 'きよらのおだし 50包入', price: 2160 },
-    { id: 'nc10', variant: 'nc', tag: '無化調', name: 'きよらのおだし 10包入', price: 950 },
-    { id: 'nc30', variant: 'nc', tag: '無化調', name: 'きよらのおだし 30包入', price: 2140 },
-    { id: 'nc50', variant: 'nc', tag: '無化調', name: 'きよらのおだし 50包入', price: 2810 },
+    { id: 'std10', category: 'dashi', variant: 'std', tag: 'レギュラー', name: 'きよらのおだし 10包入', price: 730 },
+    { id: 'std30', category: 'dashi', variant: 'std', tag: 'レギュラー', name: 'きよらのおだし 30包入', price: 1730 },
+    { id: 'std50', category: 'dashi', variant: 'std', tag: 'レギュラー', name: 'きよらのおだし 50包入', price: 2160 },
+    { id: 'nc10', category: 'dashi', variant: 'nc', tag: '無化調', name: 'きよらのおだし 10包入', price: 950 },
+    { id: 'nc30', category: 'dashi', variant: 'nc', tag: '無化調', name: 'きよらのおだし 30包入', price: 2140 },
+    { id: 'nc50', category: 'dashi', variant: 'nc', tag: '無化調', name: 'きよらのおだし 50包入', price: 2810 },
+    { id: 'soba-nama', category: 'soba', variant: 'soba', tag: 'そば', name: '生そば', price: 730 },
+    { id: 'soba-boshi', category: 'soba', variant: 'soba', tag: 'そば', name: '干しそば', price: 580 },
+    { id: 'soba-set', category: 'soba', variant: 'soba', tag: 'そば', name: 'そばセット', price: 1580 },
+    { id: 'soba-tsuyu', category: 'soba', variant: 'soba', tag: 'つゆ', name: 'そばつゆ', price: 530 },
   ];
 
   const STORAGE_KEYS = {
@@ -675,6 +717,7 @@
   const yen = (n) => '¥' + n.toLocaleString('ja-JP');
 
   const productsEl = document.getElementById('products');
+  const productsSobaEl = document.getElementById('productsSoba');
   const cartListEl = document.getElementById('cartList');
   const totalAmountEl = document.getElementById('totalAmount');
   const keypadValueEl = document.getElementById('keypadValue');
@@ -684,14 +727,19 @@
   const changeAmount = document.getElementById('changeAmount');
   const confirmBtn = document.getElementById('confirmBtn');
 
-  function renderProducts() {
-    productsEl.innerHTML = PRODUCTS.map(p => `
+  function productBtnHtml(p) {
+    return `
       <button class="product-btn variant-${p.variant}" data-id="${p.id}">
         <span class="variant-tag">${p.tag}</span>
         <span class="name">${p.name}</span>
         <span class="price">${yen(p.price)}</span>
       </button>
-    `).join('');
+    `;
+  }
+
+  function renderProducts() {
+    productsEl.innerHTML = PRODUCTS.filter(p => p.category === 'dashi').map(productBtnHtml).join('');
+    productsSobaEl.innerHTML = PRODUCTS.filter(p => p.category === 'soba').map(productBtnHtml).join('');
   }
 
   function getTotal() {
@@ -707,7 +755,7 @@
         const qty = cart[p.id];
         return `
           <div class="cart-row">
-            <div class="item-name">${p.name}<span class="item-unit">${p.tag} ・ ${yen(p.price)}</span></div>
+            <div class="item-name">${p.name}<span class="item-unit">${p.tag ? p.tag + ' ・ ' : ''}${yen(p.price)}</span></div>
             <div class="qty-control">
               <button data-dec="${p.id}" aria-label="減らす">−</button>
               <span class="qty-num">${qty}</span>
@@ -752,13 +800,16 @@
     return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
   }
 
-  productsEl.addEventListener('click', (e) => {
+  function handleProductTap(e) {
     const btn = e.target.closest('.product-btn');
     if (!btn) return;
     const id = btn.dataset.id;
     cart[id] = (cart[id] || 0) + 1;
     renderCart();
-  });
+  }
+
+  productsEl.addEventListener('click', handleProductTap);
+  productsSobaEl.addEventListener('click', handleProductTap);
 
   cartListEl.addEventListener('click', (e) => {
     const incId = e.target.closest('[data-inc]')?.dataset.inc;
@@ -821,6 +872,41 @@
     clearTimeout(autoAddTimer);
     keypadValue = '0';
     renderKeypad();
+  });
+
+  const manualValueEl = document.getElementById('manualValue');
+  let manualValue = '0';
+
+  function renderManualKeypad() {
+    manualValueEl.textContent = Number(manualValue).toLocaleString('ja-JP');
+  }
+
+  document.querySelectorAll('.manual-body .keypad button[data-manual-num]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const digit = btn.dataset.manualNum;
+      manualValue = manualValue === '0' ? (digit === '00' ? '0' : digit) : manualValue + digit;
+      if (manualValue.length > 7) manualValue = manualValue.slice(0, 7);
+      renderManualKeypad();
+    });
+  });
+
+  document.getElementById('manualBack').addEventListener('click', () => {
+    manualValue = manualValue.length > 1 ? manualValue.slice(0, -1) : '0';
+    renderManualKeypad();
+  });
+
+  document.getElementById('manualAddBtn').addEventListener('click', () => {
+    const price = parseInt(manualValue, 10) || 0;
+    if (price > 0) {
+      const id = `manual-${price}`;
+      if (!PRODUCTS.some(p => p.id === id)) {
+        PRODUCTS.push({ id, category: 'manual', variant: 'manual', tag: '', name: '手入力商品', price });
+      }
+      cart[id] = (cart[id] || 0) + 1;
+      renderCart();
+    }
+    manualValue = '0';
+    renderManualKeypad();
   });
 
   document.querySelectorAll('.quick-cash button[data-add]').forEach(btn => {
