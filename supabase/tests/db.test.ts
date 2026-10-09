@@ -62,6 +62,8 @@ describe('ログインなし(オープン)モード', () => {
     const snap = await rpc(db, null, 'app_snapshot')
     expect(snap.me).toMatchObject({ display_name: '名無し', role: 'admin', active: true })
     expect(snap.orders).toHaveLength(1)
+    // 画面表示用の snapshot でも、ヘッダーの担当者名が読める(security invoker の関数からでも)
+    expect((await rpc(db, '山田 太郎', 'app_snapshot')).me.display_name).toBe('山田 太郎')
   })
 
   it('内部ヘルパーとログイン用のスタッフ管理関数は端末から呼べない', async () => {

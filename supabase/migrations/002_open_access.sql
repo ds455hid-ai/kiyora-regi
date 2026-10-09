@@ -41,8 +41,9 @@ end $$;
 -- 内部用: 端末から直接は呼べないようにする(関数は既定で PUBLIC に実行権限が付くため明示的に剥奪)
 revoke all on function public._urldecode(text) from public, anon, authenticated;
 
+-- security definer: 呼び出し元(anon)が内部関数 _urldecode を直接呼べなくても、名前を読み取れるようにする
 create or replace function public._staff_name()
-returns text language plpgsql stable as $$
+returns text language plpgsql stable security definer set search_path = public as $$
 declare
   h text;
   v text;
