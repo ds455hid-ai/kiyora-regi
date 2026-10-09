@@ -1,19 +1,7 @@
-export interface SessionInfo {
-  userId: string
-  email?: string
-}
-
 export type SyncStatus = 'connecting' | 'connected' | 'disconnected'
 
 export interface Backend {
   readonly kind: 'supabase' | 'mock'
-  auth: {
-    getSession(): Promise<SessionInfo | null>
-    signIn(email: string, password: string): Promise<void>
-    signUp(email: string, password: string, displayName: string): Promise<{ signedIn: boolean }>
-    signOut(): Promise<void>
-    onChange(cb: () => void): () => void
-  }
   /** DB の RPC(security definer 関数)を呼ぶ。失敗は AppError を throw。 */
   rpc<T = unknown>(fn: string, args?: Record<string, unknown>): Promise<T>
   /** 変更通知(Realtime)。cb は変更があるたびに呼ばれる。戻り値で購読解除。 */

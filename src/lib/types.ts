@@ -1,12 +1,10 @@
-export type Role = 'admin' | 'staff'
 export type Category = 'food' | 'drink' | 'other'
 
 export interface Profile {
-  id: string
+  id: string | null
   display_name: string
-  role: Role
+  role: 'admin'
   active: boolean
-  created_at: string
 }
 
 export interface Product {
@@ -84,14 +82,6 @@ export interface ServeEvent {
   created_at: string
 }
 
-export interface StaffRow {
-  id: string
-  display_name: string
-  role?: Role
-  active?: boolean
-  created_at?: string
-}
-
 export interface Snapshot {
   schema_version: number
   server_time?: string
@@ -103,7 +93,6 @@ export interface Snapshot {
   orders?: Order[]
   cash_events?: CashEvent[]
   serve_events?: ServeEvent[]
-  staff?: StaffRow[]
 }
 
 export interface SalesSummary {

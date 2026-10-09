@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { addProduct, createDb, query, queryError, rpc, rpcError, seedWorld, signUp, uuid, type Db } from './harness'
+import { ADMIN, addProduct, createDb, query, queryError, rpc, rpcError, seedWorld, uuid, type Db } from './harness'
 
 let db: Db
 beforeEach(async () => {
@@ -9,120 +9,100 @@ beforeEach(async () => {
 const order = (r: any) => r.order
 const items = (oden: { id: string }, qty = 1) => [{ product_id: oden.id, qty }]
 
-describe('認証・承認・権限', () => {
-  it('最初の登録者だけが管理者(承認済み)になり、以降は承認待ちになる', async () => {
-    const a = await signUp(db, '店長')
-    const b = await signUp(db, 'スタッフ')
-    const rows = await query(db, a, `select id, role, active from profiles order by created_at`)
-    expect(rows.find((r) => r.id === a)).toMatchObject({ role: 'admin', active: true })
-    expect(rows.find((r) => r.id === b)).toMatchObject({ role: 'staff', active: false })
+describe('ログインなし(オープン)モード', () => {
+  it('未ログイン(anon)のまま、営業開始から会計・提供・返金・レジ締めまで全操作できる', async () => {
+    const { alice, admin, oden, day } = await seedWorld(db)
+    const o = order(await rpc(db, alice, 'create_order', { p_request_id: uuid(), p_items: items(oden, 2), p_received: 1000 }))
+    expect(o.order_no).toBe(1)
+    await rpc(db, null, 'serve_order', { p_order: o.id })
+    await rpc(db, null, 'set_sold_out', { p_product: oden.id, p_sold_out: true })
+    await rpc(db, null, 'set_sold_out', { p_product: oden.id, p_sold_out: false })
+    const o2 = order(await rpc(db, null, 'create_order', { p_request_id: uuid(), p_items: items(oden), p_received: 500 }))
+    await rpc(db, admin, 'void_order', { p_order: o2.id, p_reason: null })
+    const closed = await rpc(db, null, 'close_business_day', { p_day: day.id, p_denoms: { '10000': 1, '500': 2 }, p_note: null, p_force: true })
+    expect(closed.status).toBe('closed')
+    expect((await rpc(db, null, 'sales_by_day'))[0].sales_total).toBe(1000)
   })
 
-  it('承認待ちユーザーは何も読めず、業務RPCも呼べない', async () => {
-    const admin = await signUp(db, '店長')
-    const pending = await signUp(db, '新人')
-    expect(await query(db, pending, `select * from products`)).toHaveLength(0)
-    const snap = await rpc(db, pending, 'app_snapshot')
-    expect(snap.me).toMatchObject({ active: false })
-    expect(snap.products).toBeUndefined()
-    expect((await rpcError(db, pending, 'create_order', { p_request_id: uuid(), p_items: [], p_received: 0 }))?.message).toBe('forbidden')
-    expect((await rpcError(db, pending, 'serve_order', { p_order: uuid() }))?.message).toBe('forbidden')
-    // 承認すると見える
-    await rpc(db, admin, 'admin_update_staff', { p_user: pending, p_active: true, p_role: 'staff' })
-    expect((await query(db, pending, `select * from products`)).length).toBeGreaterThan(0)
+  it('スタッフ名はリクエストヘッダー(x-staff-name)から記録される。空・不正・長すぎる場合も安全', async () => {
+    const { oden } = await seedWorld(db)
+    const mk = async (who: string | null) =>
+      order(await rpc(db, who, 'create_order', { p_request_id: uuid(), p_items: items(oden), p_received: 500 }))
+    expect((await mk('アリス')).staff_name).toBe('アリス')
+    expect((await mk('山田 太郎')).staff_name).toBe('山田 太郎')
+    expect((await mk(null)).staff_name).toBe('名無し')
+    expect((await mk('   ')).staff_name).toBe('名無し')
+    expect((await mk('あ'.repeat(50))).staff_name).toBe('あ'.repeat(30))
+    expect((await mk('A\tB\nC')).staff_name).toBe('ABC')
+    expect((await mk('<script>')).staff_name).toBe('<script>')
+    await db.query(`select set_config('request.headers', '{"x-staff-name":"%E3%82"}', false)`)
+    await db.exec('set role anon')
+    const r = await db.query<{ n: string }>(`select public._staff_name() as n`)
+    await db.exec('reset role')
+    expect(r.rows[0].n).toBe('名無し')
   })
 
-  it('未ログイン(anon)はテーブルもRPCも使えない', async () => {
-    expect(await queryError(db, null, `select * from products`)).toMatch(/permission denied/)
-    expect(await queryError(db, null, `select * from orders`)).toMatch(/permission denied/)
-    expect((await rpcError(db, null, 'app_snapshot'))?.message).toMatch(/permission denied/)
-    expect((await rpcError(db, null, 'create_order', { p_request_id: uuid(), p_items: [], p_received: 0 }))?.message).toMatch(/permission denied/)
+  it('端末(anon)からテーブルへ直接書き込めない / 認証テーブルは読めない', async () => {
+    const { oden, day } = await seedWorld(db)
+    expect(await queryError(db, null, `update products set price = 1 where id = $1`, [oden.id])).toMatch(/permission denied/)
+    expect(await queryError(db, null, `insert into cash_events (business_day_id, kind, amount) values ($1, 'replenish', 99999)`, [day.id])).toMatch(/permission denied/)
+    expect(await queryError(db, null, `delete from orders`)).toMatch(/permission denied/)
+    expect(await queryError(db, null, `update business_days set next_order_no = 1`)).toMatch(/permission denied/)
+    expect(await queryError(db, null, `insert into audit_log (action) values ('x')`)).toMatch(/permission denied/)
+    expect(await queryError(db, null, `select * from profiles`)).toMatch(/permission denied/)
+    expect(await queryError(db, null, `select * from auth.users`)).toMatch(/permission denied/)
   })
 
-  it('一般スタッフは管理系RPCを呼べない', async () => {
-    const { alice, oden, day } = await seedWorld(db)
-    const denied = async (fn: string, args: any) => expect((await rpcError(db, alice, fn, args))?.message).toBe('forbidden')
-    await denied('open_business_day', { p_float: 1, p_denoms: null, p_date: null })
-    await denied('close_business_day', { p_day: day.id, p_denoms: {}, p_note: null, p_force: true })
-    await denied('upsert_product', { p_id: oden.id, p_name: 'x', p_price: 1, p_category: 'food', p_sort_order: 0, p_visible: true })
-    await denied('delete_product', { p_id: oden.id })
-    await denied('admin_update_staff', { p_user: alice, p_active: true, p_role: 'admin' })
-    await denied('record_cash_event', { p_request_id: uuid(), p_kind: 'replenish', p_amount: 100, p_note: null })
-    await denied('void_order', { p_order: uuid(), p_reason: null })
-    await denied('sales_by_day', {})
-    await denied('export_rows', { p_day: null })
-    await denied('list_audit', { p_limit: 10 })
-    await denied('day_detail', { p_day: day.id })
+  it('読み取りは未ログインでも可能(商品・営業日・注文・現金)', async () => {
+    const { alice, oden } = await seedWorld(db)
+    await rpc(db, alice, 'create_order', { p_request_id: uuid(), p_items: items(oden), p_received: 500 })
+    expect((await query(db, null, `select * from products`)).length).toBeGreaterThan(0)
+    expect(await query(db, null, `select * from orders`)).toHaveLength(1)
+    expect((await query(db, null, `select * from cash_events`)).length).toBe(2)
+    const snap = await rpc(db, null, 'app_snapshot')
+    expect(snap.me).toMatchObject({ display_name: '名無し', role: 'admin', active: true })
+    expect(snap.orders).toHaveLength(1)
   })
 
-  it('端末(管理者も含む)から注文・現金・商品テーブルへ直接書き込めない', async () => {
-    const { admin, alice, oden, day } = await seedWorld(db)
-    for (const uid of [alice, admin]) {
-      expect(await queryError(db, uid, `update products set price = 1 where id = $1`, [oden.id])).toMatch(/permission denied/)
-      expect(await queryError(db, uid, `insert into cash_events (business_day_id, kind, amount) values ($1, 'replenish', 99999)`, [day.id])).toMatch(/permission denied/)
-      expect(await queryError(db, uid, `delete from orders`)).toMatch(/permission denied/)
-      expect(await queryError(db, uid, `update profiles set role = 'admin' where id = $1`, [alice])).toMatch(/permission denied/)
-      expect(await queryError(db, uid, `update business_days set next_order_no = 1`)).toMatch(/permission denied/)
-    }
-  })
-
-  it('最後の管理者は降格・無効化できない', async () => {
-    const { admin, alice } = await seedWorld(db)
-    expect((await rpcError(db, admin, 'admin_update_staff', { p_user: admin, p_active: true, p_role: 'staff' }))?.message).toBe('last_admin')
-    expect((await rpcError(db, admin, 'admin_update_staff', { p_user: admin, p_active: false, p_role: 'admin' }))?.message).toBe('last_admin')
-    // 管理者を増やせば降格できる
-    await rpc(db, admin, 'admin_update_staff', { p_user: alice, p_active: true, p_role: 'admin' })
-    await rpc(db, admin, 'admin_update_staff', { p_user: admin, p_active: true, p_role: 'staff' })
-  })
-
-  it('全関数がanonに公開されていない', async () => {
+  it('内部ヘルパーとログイン用のスタッフ管理関数は端末から呼べない', async () => {
     const rows = await db.query<{ proname: string }>(
       `select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-        where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute')`,
-    )
-    expect(rows.rows.map((r) => r.proname)).toEqual([])
-  })
-
-  it('端末から呼べる関数は意図したものだけ(内部ヘルパーは不可)', async () => {
-    const rows = await db.query<{ proname: string }>(
-      `select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-        where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'execute')
-        order by 1`,
+        where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute') order by 1`,
     )
     const names = rows.rows.map((r) => r.proname)
-    for (const internal of ['_require_staff', '_require_admin', '_audit', '_drawer_balance', '_refresh_order_served', '_order_json_by_id', 'handle_new_user', '_denoms_total']) {
+    for (const internal of ['_require_staff', '_require_admin', '_audit', '_drawer_balance', '_refresh_order_served',
+      '_order_json_by_id', '_lock_day_shared', '_denoms_total', '_urldecode', 'handle_new_user', 'admin_update_staff']) {
       expect(names).not.toContain(internal)
     }
-    expect(names).toContain('create_order')
+    for (const rpcName of ['create_order', 'serve_order', 'void_order', 'open_business_day', 'close_business_day', 'app_snapshot', 'export_rows']) {
+      expect(names).toContain(rpcName)
+    }
+    const a = await db.query<{ ok: boolean }>(`select has_function_privilege('authenticated', 'public.admin_update_staff(uuid, boolean, text, text)', 'execute') as ok`)
+    expect(a.rows[0].ok).toBe(false)
   })
 })
 
 describe('営業日・現金', () => {
   it('営業開始前は会計できない / 営業日は同時に1つだけ', async () => {
-    const admin = await signUp(db, '店長')
-    const alice = await signUp(db, 'アリス')
-    await rpc(db, admin, 'admin_update_staff', { p_user: alice, p_active: true, p_role: 'staff' })
-    const [oden] = await query(db, admin, `select id from products order by sort_order`)
-    expect((await rpcError(db, alice, 'create_order', { p_request_id: uuid(), p_items: items(oden), p_received: 500 }))?.message).toBe('no_open_day')
-    await rpc(db, admin, 'open_business_day', { p_float: 5000, p_denoms: null, p_date: '2026-10-10' })
-    expect((await rpcError(db, admin, 'open_business_day', { p_float: 5000, p_denoms: null, p_date: '2026-10-11' }))?.message).toBe('day_already_open')
+    const [oden] = await query(db, null, `select id from products order by sort_order`)
+    expect((await rpcError(db, 'アリス', 'create_order', { p_request_id: uuid(), p_items: items(oden), p_received: 500 }))?.message).toBe('no_open_day')
+    await rpc(db, ADMIN, 'open_business_day', { p_float: 5000, p_denoms: null, p_date: '2026-10-10' })
+    expect((await rpcError(db, ADMIN, 'open_business_day', { p_float: 5000, p_denoms: null, p_date: '2026-10-11' }))?.message).toBe('day_already_open')
   })
 
   it('釣銭は金種入力から計算され、現金残高に反映される', async () => {
-    const admin = await signUp(db, '店長')
-    const day = await rpc(db, admin, 'open_business_day', { p_float: null, p_denoms: { '1000': 5, '500': 10, '100': 20 }, p_date: '2026-10-10' })
+    const day = await rpc(db, ADMIN, 'open_business_day', { p_float: null, p_denoms: { '1000': 5, '500': 10, '100': 20 }, p_date: '2026-10-10' })
     expect(day.opening_float).toBe(5000 + 5000 + 2000)
-    const snap = await rpc(db, admin, 'app_snapshot')
+    const snap = await rpc(db, ADMIN, 'app_snapshot')
     expect(snap.balance).toBe(12000)
     expect(snap.cash_totals).toEqual({ opening: 12000 })
   })
 
   it('金種に不正な額面や巨大な枚数は拒否される', async () => {
-    const admin = await signUp(db, '店長')
-    expect((await rpcError(db, admin, 'open_business_day', { p_float: null, p_denoms: { '777': 1 }, p_date: null }))?.message).toBe('invalid_denoms')
-    expect((await rpcError(db, admin, 'open_business_day', { p_float: null, p_denoms: { '1000': -1 }, p_date: null }))?.message).toBe('invalid_denoms')
-    expect((await rpcError(db, admin, 'open_business_day', { p_float: null, p_denoms: { '10000': 9999999 }, p_date: null }))?.message).toBe('invalid_denoms')
-    expect((await rpcError(db, admin, 'open_business_day', { p_float: -5, p_denoms: null, p_date: null }))?.message).toBe('invalid_amount')
+    expect((await rpcError(db, ADMIN, 'open_business_day', { p_float: null, p_denoms: { '777': 1 }, p_date: null }))?.message).toBe('invalid_denoms')
+    expect((await rpcError(db, ADMIN, 'open_business_day', { p_float: null, p_denoms: { '1000': -1 }, p_date: null }))?.message).toBe('invalid_denoms')
+    expect((await rpcError(db, ADMIN, 'open_business_day', { p_float: null, p_denoms: { '10000': 9999999 }, p_date: null }))?.message).toBe('invalid_denoms')
+    expect((await rpcError(db, ADMIN, 'open_business_day', { p_float: -5, p_denoms: null, p_date: null }))?.message).toBe('invalid_amount')
   })
 
   it('補充・回収: 残高を超える回収は不可 / request_idで二重実行されない', async () => {
@@ -146,7 +126,6 @@ describe('営業日・現金', () => {
     expect(unserved).toMatchObject({ message: 'unserved_orders', detail: '1' })
 
     await rpc(db, alice, 'serve_order', { p_order: o.id })
-    // 理論残高 = 10000 + 1000 = 11000。実際は 10000×1 + 500×2 = 11000 → 過不足 0
     let closed = await rpc(db, admin, 'close_business_day', { p_day: day.id, p_denoms: { '10000': 1, '500': 2 }, p_note: 'ok', p_force: false })
     expect(closed).toMatchObject({ status: 'closed', expected_cash: 11000, counted_cash: 11000, variance: 0 })
 
@@ -154,7 +133,6 @@ describe('営業日・現金', () => {
     expect((await rpcError(db, admin, 'void_order', { p_order: o.id, p_reason: null }))?.message).toBe('day_closed')
     expect((await rpcError(db, admin, 'close_business_day', { p_day: day.id, p_denoms: {}, p_note: null, p_force: false }))?.message).toBe('day_closed')
 
-    // 再開 → 再度締めて不足を記録
     await rpc(db, admin, 'reopen_business_day', { p_day: day.id })
     closed = await rpc(db, admin, 'close_business_day', { p_day: day.id, p_denoms: { '10000': 1, '100': 3 }, p_note: '100円玉不足', p_force: false })
     expect(closed).toMatchObject({ expected_cash: 11000, counted_cash: 10300, variance: -700 })
@@ -173,7 +151,6 @@ describe('営業日・現金', () => {
     const o2 = order(await rpc(db, alice, 'create_order', { p_request_id: uuid(), p_items: items(oden), p_received: 500 }))
     expect(o2.order_no).toBe(1)
     expect(o2.business_day_id).toBe(day2.id)
-    // 同じ日付は二重に開けない
     await rpc(db, alice, 'serve_order', { p_order: o2.id })
     await rpc(db, admin, 'close_business_day', { p_day: day2.id, p_denoms: {}, p_note: null, p_force: false })
     expect((await rpcError(db, admin, 'open_business_day', { p_float: 1, p_denoms: null, p_date: '2026-10-11' }))?.message).toBe('day_exists')
@@ -204,7 +181,6 @@ describe('会計(注文確定・連番・冪等)', () => {
     const snap = await rpc(db, alice, 'app_snapshot')
     expect(snap.orders).toHaveLength(1)
     expect(snap.balance).toBe(10000 + 1000)
-    // 次の新規会計は 002(欠番・重複なし)
     const next = await rpc(db, alice, 'create_order', { p_request_id: uuid(), p_items: items(oden), p_received: 500 })
     expect(order(next).order_no).toBe(2)
   })
@@ -217,7 +193,6 @@ describe('会計(注文確定・連番・冪等)', () => {
     expect(o1.total).toBe(500)
     expect(o1.items[0]).toMatchObject({ unit_price: 500, name: 'おでん(5個入り)', qty: 1 })
 
-    // 値上げ・改名しても過去の注文は変わらない
     await rpc(db, admin, 'upsert_product', { p_id: oden.id, p_name: 'おでん5個', p_price: 600, p_category: 'food', p_sort_order: 10, p_visible: true })
     const o2 = order(await rpc(db, alice, 'create_order', { p_request_id: uuid(), p_items: items(oden), p_received: 1000 }))
     expect(o2).toMatchObject({ total: 600, change_given: 400 })
@@ -225,7 +200,6 @@ describe('会計(注文確定・連番・冪等)', () => {
     const old = snap.orders.find((o: any) => o.order_no === 1)
     expect(old.total).toBe(500)
     expect(old.items[0]).toMatchObject({ unit_price: 500, name: 'おでん(5個入り)' })
-    // 商品を削除しても注文は残る
     await rpc(db, admin, 'delete_product', { p_id: oden.id })
     const snap2 = await rpc(db, alice, 'app_snapshot')
     expect(snap2.orders).toHaveLength(2)
@@ -244,6 +218,19 @@ describe('会計(注文確定・連番・冪等)', () => {
     expect(r.items.find((i: any) => i.name === 'おでん(5個入り)').qty).toBe(2)
   })
 
+  it('初期商品(おでん・飲み物・ぜんざい)が登録されている', async () => {
+    const rows = await query<{ name: string; price: number }>(db, null, `select name, price from products order by sort_order`)
+    expect(rows).toEqual([
+      { name: 'おでん(5個入り)', price: 500 },
+      { name: 'コーヒー', price: 300 },
+      { name: 'カフェラテ', price: 300 },
+      { name: '紅茶', price: 300 },
+      { name: 'ゆず蜂蜜', price: 300 },
+      { name: 'ココア', price: 300 },
+      { name: 'ぜんざい', price: 400 },
+    ])
+  })
+
   it('不正な会計は拒否される(不足・数量・存在しない/非表示/売り切れ商品)', async () => {
     const { admin, alice, oden } = await seedWorld(db)
     const cola = await addProduct(db, admin, 'コーラ', 200)
@@ -260,18 +247,17 @@ describe('会計(注文確定・連番・冪等)', () => {
     await rpc(db, alice, 'set_sold_out', { p_product: cola.id, p_sold_out: false })
     expect(await e(items(cola), 200)).toBeNull()
 
-    await rpc(db, admin, 'upsert_product', { p_id: cola.id, p_name: 'コーラ', p_price: 200, p_category: 'drink', p_sort_order: 20, p_visible: false })
+    await rpc(db, admin, 'upsert_product', { p_id: cola.id, p_name: 'コーラ', p_price: 200, p_category: 'drink', p_sort_order: 200, p_visible: false })
     expect((await e(items(cola), 200))?.message).toBe('product_hidden')
-    // 失敗した会計で注文番号が消費されない
     const ok = order(await rpc(db, alice, 'create_order', { p_request_id: uuid(), p_items: items(oden), p_received: 500 }))
-    expect(ok.order_no).toBe(2) // 上で唯一成功したコーラ会計が 1
+    expect(ok.order_no).toBe(2)
   })
 
-  it('スタッフ名は端末の申告ではなく認証ユーザーから記録される', async () => {
+  it('スタッフ名は端末の申告(ヘッダー)から記録され、staff_id は持たない', async () => {
     const { alice, oden } = await seedWorld(db)
     const o = order(await rpc(db, alice, 'create_order', { p_request_id: uuid(), p_items: items(oden), p_received: 500 }))
     expect(o.staff_name).toBe('アリス')
-    expect(o.staff_id).toBe(alice)
+    expect(o.staff_id).toBeNull()
   })
 })
 
@@ -295,11 +281,9 @@ describe('受け渡し(二重提供の防止)', () => {
     const o = order(await rpc(db, alice, 'create_order', { p_request_id: uuid(), p_items: items(oden, 3), p_received: 2000 }))
     const itemId = o.items[0].id
     expect(await rpc(db, alice, 'serve_item', { p_item: itemId, p_from: 0, p_to: 1 })).toMatchObject({ ok: true, changed: true })
-    // ボブも「0 → 1」を押した(画面が古い) → 二重カウントされず conflict
     const dup = await rpc(db, bob, 'serve_item', { p_item: itemId, p_from: 0, p_to: 1 })
     expect(dup).toMatchObject({ ok: false, reason: 'conflict', served_qty: 1, served_by: 'アリス' })
     expect(dup.order.items[0].served_qty).toBe(1)
-    // 最新値からなら進められ、全量で served_at が立つ
     await rpc(db, bob, 'serve_item', { p_item: itemId, p_from: 1, p_to: 3 })
     const done = await rpc(db, bob, 'serve_item', { p_item: itemId, p_from: 3, p_to: 3 })
     expect(done.order.served_at).not.toBeNull()
@@ -334,7 +318,6 @@ describe('返金・売上', () => {
     expect(snap.balance).toBe(10000)
     expect(snap.cash_totals).toEqual({ opening: 10000, sale: 1000, refund: -1000 })
     expect(snap.orders[0]).toMatchObject({ status: 'voided', void_reason: '返品', voided_by_name: '店長' })
-    // 売上は取消し分を除外
     const sum = await rpc(db, admin, 'sales_summary', { p_day: null })
     expect(sum).toMatchObject({ sales_total: 0, order_count: 0, voided_count: 1, voided_total: 1000 })
   })
@@ -363,7 +346,7 @@ describe('返金・売上', () => {
     ])
   })
 
-  it('CSV出力用の行(管理者のみ)', async () => {
+  it('CSV出力用の行', async () => {
     const { admin, alice, oden, day } = await seedWorld(db)
     await rpc(db, alice, 'create_order', { p_request_id: uuid(), p_items: items(oden, 2), p_received: 1000 })
     const rows = await rpc(db, admin, 'export_rows', { p_day: day.id })
@@ -372,34 +355,16 @@ describe('返金・売上', () => {
   })
 })
 
-describe('RLS: 閲覧範囲', () => {
-  it('一般スタッフは営業中の日のデータだけ見え、過去日は管理者のみ', async () => {
-    const { admin, alice, oden, day } = await seedWorld(db)
-    const o = order(await rpc(db, alice, 'create_order', { p_request_id: uuid(), p_items: items(oden), p_received: 500 }))
-    await rpc(db, alice, 'serve_order', { p_order: o.id })
-    await rpc(db, admin, 'close_business_day', { p_day: day.id, p_denoms: { '10000': 1, '500': 1 }, p_note: null, p_force: false })
-    await rpc(db, admin, 'open_business_day', { p_float: 1000, p_denoms: null, p_date: '2026-10-11' })
-
-    expect(await query(db, alice, `select id from orders`)).toHaveLength(0)
-    expect(await query(db, alice, `select id from business_days`)).toHaveLength(1)
-    expect(await query(db, alice, `select id from cash_events where business_day_id = $1`, [day.id])).toHaveLength(0)
-    expect(await query(db, admin, `select id from orders`)).toHaveLength(1)
-    expect(await query(db, admin, `select id from business_days`)).toHaveLength(2)
-    const detail = await rpc(db, admin, 'day_detail', { p_day: day.id })
-    expect(detail.orders).toHaveLength(1)
-    // 監査ログは管理者のみ
-    expect((await query(db, alice, `select * from audit_log`))).toHaveLength(0)
-    expect((await query(db, admin, `select * from audit_log`)).length).toBeGreaterThan(5)
-  })
-
-  it('操作履歴(監査ログ)に主要操作が残る', async () => {
+describe('履歴・配信設定', () => {
+  it('操作履歴(監査ログ)に主要操作が担当者名つきで残る', async () => {
     const { admin, alice, oden } = await seedWorld(db)
     const o = order(await rpc(db, alice, 'create_order', { p_request_id: uuid(), p_items: items(oden), p_received: 500 }))
     await rpc(db, admin, 'void_order', { p_order: o.id, p_reason: 'テスト' })
     const log = await rpc(db, admin, 'list_audit', { p_limit: 100 })
     const actions = log.map((l: any) => l.action)
-    expect(actions).toEqual(expect.arrayContaining(['open_day', 'staff_update', 'create_order', 'void_order']))
+    expect(actions).toEqual(expect.arrayContaining(['open_day', 'create_order', 'void_order']))
     expect(log.find((l: any) => l.action === 'create_order')).toMatchObject({ staff_name: 'アリス' })
+    expect(log.find((l: any) => l.action === 'void_order')).toMatchObject({ staff_name: '店長' })
   })
 
   it('Realtime の配信対象テーブルが登録されている', async () => {
@@ -431,7 +396,6 @@ describe('整合性の不変条件', () => {
     expect(snap.balance).toBe(20000 + paid - 15000 + 2500)
     const all = await query<{ s: number }>(db, admin, `select sum(amount)::int s from cash_events`)
     expect(all[0].s).toBe(snap.balance)
-    // お釣り = 預かり - 合計 が全注文で成立
     for (const o of snap.orders) expect(o.change_given).toBe(o.received - o.total)
   })
 })

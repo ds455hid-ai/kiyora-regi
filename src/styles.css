@@ -89,8 +89,8 @@ button:disabled { cursor: not-allowed; }
 .hdr .title { font-family: var(--font-num); font-weight: 900; font-size: 1.05rem; letter-spacing: 0.02em; }
 .hdr .day { font-size: 0.72rem; color: var(--muted); font-weight: 700; }
 .hdr .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.hdr .me { font-size: 0.8rem; font-weight: 700; text-align: right; }
-.hdr .me small { display: block; color: var(--muted); font-weight: 500; }
+.hdr .me { appearance: none; border: 0; background: none; padding: 4px 0 4px 8px; font-size: 0.8rem; font-weight: 700; text-align: right; }
+.hdr .me small { display: block; color: var(--accent-strong); font-weight: 500; text-decoration: underline; }
 .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--good); flex-shrink: 0; }
 .dot.degraded { background: #d9a21b; }
 .dot.offline { background: var(--warn); }

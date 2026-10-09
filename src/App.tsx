@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Icon } from './components/Icon'
+import { Sheet } from './components/Sheet'
 import { Toasts } from './components/Toasts'
 import { dateJa } from './lib/format'
-import type { MockBackend, MockUser } from './lib/mockBackend'
+import { setStaffName } from './lib/staff'
 import { Admin } from './screens/Admin'
-import { AuthScreen } from './screens/AuthScreen'
 import { Cash } from './screens/Cash'
 import { Handover } from './screens/Handover'
+import { NameForm, NameScreen } from './screens/NameScreen'
 import { Register } from './screens/Register'
 import { Sales } from './screens/Sales'
-import { ConnectError, Loading, PendingApproval, Unconfigured } from './screens/StatusScreens'
+import { ConnectError, Loading, Unconfigured } from './screens/StatusScreens'
 import { useApp } from './store'
 
 const TABS = [
@@ -40,56 +41,43 @@ function useTab(): [TabId, (t: string) => void] {
 }
 
 export function App() {
-  const { phase, backend } = useApp()
+  const { phase } = useApp()
   let body
   switch (phase) {
     case 'loading': body = <Loading />; break
     case 'unconfigured': body = <Unconfigured />; break
-    case 'anon': body = <AuthScreen />; break
+    case 'needname': body = <NameScreen />; break
     case 'error': body = <ConnectError />; break
-    case 'pending': body = <PendingApproval />; break
     default: body = <Shell />
   }
   return (
     <>
-      {backend?.kind === 'mock' && phase === 'pending' && <DevBar />}
       {body}
       <Toasts />
     </>
   )
 }
 
+/** 開発用モックのときだけ表示: 別の端末のつもりで名前を切り替える */
 function DevBar() {
-  const { backend, refresh } = useApp()
-  const [users, setUsers] = useState<MockUser[]>([])
-  const mock = backend as MockBackend
-  useEffect(() => {
-    void mock.dev.users().then(setUsers)
-  }, [mock])
   return (
     <div className="dev-bar">
       <b>開発用モック</b>
-      <span>端末(ユーザー)切替:</span>
-      <select
-        aria-label="ユーザー切替"
-        onChange={(e) => void mock.dev.switchUser(e.target.value).then(() => refresh())}
-        defaultValue=""
-      >
-        <option value="" disabled>選択</option>
-        {users.map((u) => <option key={u.id} value={u.id}>{u.name}({u.role}{u.active ? '' : '・承認待ち'})</option>)}
-      </select>
+      <span>端末の名前:</span>
+      {['店長', 'アリス', 'ボブ'].map((n) => (
+        <button key={n} className="btn sm" style={{ minHeight: 26, padding: '2px 8px' }} onClick={() => setStaffName(n)}>{n}</button>
+      ))}
     </div>
   )
 }
 
 function Shell() {
-  const { snapshot, conn, backend } = useApp()
+  const { snapshot, conn, backend, staffName } = useApp()
   const [tab, goto] = useTab()
-  const me = snapshot!.me!
+  const [editName, setEditName] = useState(false)
   const day = snapshot!.day
   const orders = snapshot!.orders ?? []
   const pendingOrders = orders.filter((o) => o.status === 'paid' && !o.served_at).length
-  const pendingStaff = me.role === 'admin' ? (snapshot!.staff ?? []).filter((s) => s.active === false).length : 0
 
   return (
     <div className="app">
@@ -100,7 +88,10 @@ function Shell() {
           <span className="title">屋台レジ</span>
           <span className="day">{day ? `営業中 ${dateJa(day.business_date)}` : '営業前'}</span>
         </div>
-        <div className="me">{me.display_name}<small>{me.role === 'admin' ? '管理者' : 'スタッフ'}</small></div>
+        <button className="me" onClick={() => setEditName(true)} aria-label="名前を変更">
+          {staffName}
+          <small>名前を変更</small>
+        </button>
       </header>
       {conn === 'offline' && <div className="banner offline" role="alert">通信できません。会計・提供は送信されません(電波が戻ると自動で最新に更新します)</div>}
       {conn === 'degraded' && <div className="banner degraded" role="status">リアルタイム同期が切れています。自動で再接続中です(数秒ごとに最新を取得します)</div>}
@@ -119,10 +110,15 @@ function Shell() {
             <Icon name={t.icon} />
             {t.label}
             {t.id === 'handover' && pendingOrders > 0 && <span className="count">{pendingOrders}</span>}
-            {t.id === 'admin' && pendingStaff > 0 && <span className="count">{pendingStaff}</span>}
           </button>
         ))}
       </nav>
+
+      {editName && (
+        <Sheet title="名前を変更" onClose={() => setEditName(false)}>
+          <NameForm initial={staffName} submitLabel="この名前にする" onDone={() => setEditName(false)} />
+        </Sheet>
+      )}
     </div>
   )
 }

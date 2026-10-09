@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react'
 import { DayControl } from '../components/DayControl'
+import { Sheet } from '../components/Sheet'
 import { saveTextFile } from '../lib/csv'
 import { APP_VERSION } from '../lib/env'
 import { errorMessage } from '../lib/errors'
 import { dateTimeJa, orderNo, yen } from '../lib/format'
 import { readLegacyData, type LegacyData } from '../lib/legacy'
-import type { AuditRow, Category, Product, StaffRow } from '../lib/types'
+import type { AuditRow, Category, Product } from '../lib/types'
+import { NameForm } from './NameScreen'
 import { useApp } from '../store'
 
-type Section = 'day' | 'products' | 'staff' | 'more'
+type Section = 'day' | 'products' | 'more'
 
 const CATEGORY_OPTIONS: { value: Category; label: string }[] = [
   { value: 'food', label: '食べ物' },
@@ -17,62 +19,21 @@ const CATEGORY_OPTIONS: { value: Category; label: string }[] = [
 ]
 
 export function Admin() {
-  const { snapshot } = useApp()
-  const isAdmin = snapshot!.me!.role === 'admin'
-  const pendingStaff = (snapshot!.staff ?? []).filter((s) => s.active === false).length
-  const [section, setSection] = useState<Section>(isAdmin ? 'day' : 'products')
+  const [section, setSection] = useState<Section>('day')
 
   return (
     <div className="screen">
       <div className="stack">
-        {isAdmin ? (
-          <div className="seg" role="group" aria-label="管理メニュー">
-            <button aria-pressed={section === 'day'} onClick={() => setSection('day')}>営業</button>
-            <button aria-pressed={section === 'products'} onClick={() => setSection('products')}>商品</button>
-            <button aria-pressed={section === 'staff'} onClick={() => setSection('staff')}>
-              スタッフ{pendingStaff > 0 ? ` (${pendingStaff})` : ''}
-            </button>
-            <button aria-pressed={section === 'more'} onClick={() => setSection('more')}>その他</button>
-          </div>
-        ) : (
-          <div className="h2">売り切れ設定</div>
-        )}
-
-        {section === 'day' && isAdmin && <DayControl />}
-        {section === 'products' && (isAdmin ? <ProductsSection /> : <SoldOutSection />)}
-        {section === 'staff' && isAdmin && <StaffSection />}
-        {(section === 'more' || !isAdmin) && <MoreSection isAdmin={isAdmin} />}
-      </div>
-    </div>
-  )
-}
-
-/* ---------------- 売り切れ(一般スタッフも操作可) ---------------- */
-function SoldOutSection() {
-  const { snapshot, api, toast } = useApp()
-  const products = (snapshot!.products ?? []).filter((p) => p.visible)
-  const [busy, setBusy] = useState<string | null>(null)
-  async function toggle(p: Product) {
-    setBusy(p.id)
-    try {
-      await api.setSoldOut(p.id, !p.sold_out)
-      toast(`${p.name}を${p.sold_out ? '販売再開' : '売り切れ'}にしました`, 'ok')
-    } catch (e) {
-      toast(errorMessage(e), 'error')
-    } finally {
-      setBusy(null)
-    }
-  }
-  return (
-    <div className="card list">
-      {products.map((p) => (
-        <div className="li" key={p.id}>
-          <div className="grow"><div style={{ fontWeight: 700 }}>{p.name}</div><div className="muted num">{yen(p.price)}</div></div>
-          <button className={`btn sm ${p.sold_out ? 'danger' : ''}`} disabled={busy === p.id} onClick={() => void toggle(p)} aria-pressed={p.sold_out}>
-            {p.sold_out ? '売り切れ中(再開する)' : '売り切れにする'}
-          </button>
+        <div className="seg" role="group" aria-label="管理メニュー">
+          <button aria-pressed={section === 'day'} onClick={() => setSection('day')}>営業</button>
+          <button aria-pressed={section === 'products'} onClick={() => setSection('products')}>商品</button>
+          <button aria-pressed={section === 'more'} onClick={() => setSection('more')}>その他</button>
         </div>
-      ))}
+
+        {section === 'day' && <DayControl />}
+        {section === 'products' && <ProductsSection />}
+        {section === 'more' && <MoreSection />}
+      </div>
     </div>
   )
 }
@@ -192,64 +153,6 @@ function ProductRow({ product: p }: { product: Product }) {
   )
 }
 
-/* ---------------- スタッフ管理 ---------------- */
-function StaffSection() {
-  const { snapshot, api, toast } = useApp()
-  const meId = snapshot!.me!.id
-  const staff = [...(snapshot!.staff ?? [])].sort((a, b) => Number(a.active) - Number(b.active) || (a.created_at ?? '').localeCompare(b.created_at ?? ''))
-  const [busy, setBusy] = useState<string | null>(null)
-
-  async function update(s: StaffRow, patch: { active?: boolean; role?: 'admin' | 'staff'; name?: string }, okText: string) {
-    setBusy(s.id)
-    try {
-      await api.updateStaff(s.id, patch.active ?? !!s.active, patch.role ?? s.role ?? 'staff', patch.name ?? null)
-      toast(okText, 'ok')
-    } catch (e) {
-      toast(errorMessage(e), 'error')
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  return (
-    <div className="stack">
-      <p className="hint" style={{ margin: 0 }}>
-        スタッフはログイン画面の「新規登録」から自分で登録します。ここで「承認」すると使えるようになります。
-        全員の登録が終わったら、Supabase の Authentication 設定で新規サインアップを OFF にすると安全です。
-      </p>
-      {staff.map((s) => (
-        <div className="card stack" key={s.id}>
-          <div className="row">
-            <div className="grow">
-              <div style={{ fontWeight: 900, fontSize: '1.05rem' }}>{s.display_name}{s.id === meId ? '(あなた)' : ''}</div>
-              <div className="row" style={{ gap: 6, marginTop: 4 }}>
-                {s.active ? <span className="chip good">有効</span> : <span className="chip warn">承認待ち/無効</span>}
-                <span className="chip accent">{s.role === 'admin' ? '管理者' : 'スタッフ'}</span>
-              </div>
-            </div>
-          </div>
-          <div className="row wrap">
-            {!s.active ? (
-              <button className="btn primary grow" disabled={busy === s.id} onClick={() => void update(s, { active: true }, `${s.display_name}さんを承認しました`)}>承認する</button>
-            ) : (
-              <button className="btn grow" disabled={busy === s.id} onClick={() => void update(s, { active: false }, `${s.display_name}さんを無効にしました`)}>無効にする</button>
-            )}
-            <button className="btn grow" disabled={busy === s.id}
-              onClick={() => void update(s, { role: s.role === 'admin' ? 'staff' : 'admin' }, s.role === 'admin' ? 'スタッフに変更しました' : '管理者に変更しました')}>
-              {s.role === 'admin' ? 'スタッフにする' : '管理者にする'}
-            </button>
-            <button className="btn grow" disabled={busy === s.id}
-              onClick={() => {
-                const n = window.prompt('表示名を入力してください(過去の会計記録の名前は変わりません)', s.display_name)
-                if (n && n.trim()) void update(s, { name: n.trim() }, '名前を変更しました')
-              }}>名前を変更</button>
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 /* ---------------- その他: 操作履歴 / 旧データ / アカウント ---------------- */
 const ACTION_LABEL: Record<string, string> = {
   open_day: '営業開始', close_day: 'レジ締め', reopen_day: '営業再開', create_order: '会計', void_order: '会計取消',
@@ -279,9 +182,9 @@ function auditDetail(a: AuditRow): string {
   }
 }
 
-function MoreSection({ isAdmin }: { isAdmin: boolean }) {
-  const { snapshot, api, backend, signOut, toast } = useApp()
-  const me = snapshot!.me!
+function MoreSection() {
+  const { api, backend, staffName, toast } = useApp()
+  const [editName, setEditName] = useState(false)
   const [audit, setAudit] = useState<AuditRow[] | null>(null)
   const [legacy, setLegacy] = useState<LegacyData | null>(null)
 
@@ -304,7 +207,7 @@ function MoreSection({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <>
-      {isAdmin && (
+      {(
         <div className="card stack">
           <div className="row between"><h3 style={{ margin: 0 }}>操作履歴(監査ログ)</h3><button className="btn sm" onClick={() => void loadAudit()}>{audit ? '更新' : '読み込む'}</button></div>
           {audit && (
@@ -324,7 +227,7 @@ function MoreSection({ isAdmin }: { isAdmin: boolean }) {
         </div>
       )}
 
-      {isAdmin && (
+      {(
         <div className="card stack">
           <h3 style={{ margin: 0 }}>旧レジ(v1)のデータ</h3>
           {legacy && legacy.keys.length > 0 ? (
@@ -341,13 +244,19 @@ function MoreSection({ isAdmin }: { isAdmin: boolean }) {
       )}
 
       <div className="card stack">
-        <h3 style={{ margin: 0 }}>アカウント</h3>
-        <div className="kv"><span>名前</span><span className="v">{me.display_name}</span></div>
-        <div className="kv"><span>権限</span><span className="v">{me.role === 'admin' ? '管理者' : 'スタッフ'}</span></div>
+        <h3 style={{ margin: 0 }}>この端末</h3>
+        <div className="kv"><span>担当者名</span><span className="v">{staffName}</span></div>
         <div className="kv"><span>バージョン</span><span className="v">v{APP_VERSION}</span></div>
         <div className="kv"><span>接続先</span><span className="v">{backend?.kind === 'mock' ? '開発用モック' : 'Supabase'}</span></div>
-        <button className="btn danger block" onClick={() => void signOut()}>ログアウト</button>
+        <button className="btn block" onClick={() => setEditName(true)}>名前を変更</button>
+        <p className="hint" style={{ margin: 0 }}>ログインはありません。URLを知っている人は誰でも操作できるので、URLの扱いにご注意ください。</p>
       </div>
+
+      {editName && (
+        <Sheet title="名前を変更" onClose={() => setEditName(false)}>
+          <NameForm initial={staffName} submitLabel="この名前にする" onDone={() => setEditName(false)} />
+        </Sheet>
+      )}
     </>
   )
 }

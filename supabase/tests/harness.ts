@@ -2,7 +2,9 @@ import { PGlite } from '@electric-sql/pglite'
 import { readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 
-export const MIGRATION = readFileSync(new URL('../migrations/001_init.sql', import.meta.url), 'utf8')
+const read = (f: string) => readFileSync(new URL(`../migrations/${f}`, import.meta.url), 'utf8')
+/** 001(基本スキーマ) + 002(ログインなしモード)。本番と同じ順で流す */
+export const MIGRATION = read('001_init.sql') + '\n' + read('002_open_access.sql')
 
 /** Supabase と同等のロール / auth スキーマ / デフォルト権限(本番と同じ SQL を流す前の下準備) */
 export const SUPABASE_STUB_SQL = `
@@ -40,78 +42,72 @@ export async function createDb() {
 
 export type Db = Awaited<ReturnType<typeof createDb>>
 
-export async function signUp(db: Db, name: string): Promise<string> {
-  const id = randomUUID()
-  await db.query(
-    `insert into auth.users (id, email, raw_user_meta_data) values ($1, $2, $3::jsonb)`,
-    [id, `${name}@example.com`, JSON.stringify({ display_name: name })],
-  )
-  return id
-}
+/** 端末が送る x-staff-name ヘッダー(パーセントエンコード)を PostgREST と同じ形で再現 */
+const headersFor = (who: string | null) =>
+  JSON.stringify(who === null ? {} : { 'x-staff-name': encodeURIComponent(who) })
 
-/** uid が null なら anon、それ以外は authenticated としてクエリを実行 */
-export async function as<T>(db: Db, uid: string | null, fn: () => Promise<T>): Promise<T> {
-  await db.query(`select set_config('request.jwt.claim.sub', $1, false)`, [uid ?? ''])
-  await db.exec(`set role ${uid ? 'authenticated' : 'anon'}`)
+/** who = スタッフ名(未ログインの anon として実行し、名前だけをヘッダーで渡す) */
+export async function as<T>(db: Db, who: string | null, fn: () => Promise<T>): Promise<T> {
+  await db.query(`select set_config('request.headers', $1, false)`, [headersFor(who)])
+  await db.exec('set role anon')
   try {
     return await fn()
   } finally {
     await db.exec('reset role')
-    await db.query(`select set_config('request.jwt.claim.sub', '', false)`)
+    await db.query(`select set_config('request.headers', '', false)`)
   }
 }
 
 /** RPC を名前付き引数で呼ぶ(PostgREST の rpc と同じ形) */
-export async function rpc<T = any>(db: Db, uid: string | null, fn: string, args: Record<string, unknown> = {}): Promise<T> {
+export async function rpc<T = any>(db: Db, who: string | null, fn: string, args: Record<string, unknown> = {}): Promise<T> {
   const keys = Object.keys(args)
   const params = keys.map((k, i) => `${k} => $${i + 1}`).join(', ')
   const values = keys.map((k) => {
     const v = args[k]
     return v !== null && typeof v === 'object' ? JSON.stringify(v) : v
   })
-  return as(db, uid, async () => {
+  return as(db, who, async () => {
     const res = await db.query<{ r: T }>(`select public.${fn}(${params}) as r`, values)
     return res.rows[0].r
   })
 }
 
-export async function rpcError(db: Db, uid: string | null, fn: string, args: Record<string, unknown> = {}) {
+export async function rpcError(db: Db, who: string | null, fn: string, args: Record<string, unknown> = {}) {
   try {
-    await rpc(db, uid, fn, args)
+    await rpc(db, who, fn, args)
   } catch (e: any) {
     return { message: String(e.message ?? e), detail: e.detail as string | undefined, code: e.code as string | undefined }
   }
   return null
 }
 
-export async function query<T = any>(db: Db, uid: string | null, sql: string, params: unknown[] = []): Promise<T[]> {
-  return as(db, uid, async () => (await db.query<T>(sql, params)).rows)
+export async function query<T = any>(db: Db, who: string | null, sql: string, params: unknown[] = []): Promise<T[]> {
+  return as(db, who, async () => (await db.query<T>(sql, params)).rows)
 }
 
-export async function queryError(db: Db, uid: string | null, sql: string, params: unknown[] = []) {
+export async function queryError(db: Db, who: string | null, sql: string, params: unknown[] = []) {
   try {
-    await query(db, uid, sql, params)
+    await query(db, who, sql, params)
   } catch (e: any) {
     return String(e.message ?? e)
   }
   return null
 }
 
-/** 管理者 + スタッフ 2 人 + 営業開始済みの標準セットアップ */
+export const ADMIN = '店長'
+export const ALICE = 'アリス'
+export const BOB = 'ボブ'
+
+/** 営業開始済みの標準セットアップ(ログインなし。名前は文字列で渡すだけ) */
 export async function seedWorld(db: Db, opts: { openFloat?: number } = {}) {
-  const admin = await signUp(db, '店長')
-  const alice = await signUp(db, 'アリス')
-  const bob = await signUp(db, 'ボブ')
-  await rpc(db, admin, 'admin_update_staff', { p_user: alice, p_active: true, p_role: 'staff' })
-  await rpc(db, admin, 'admin_update_staff', { p_user: bob, p_active: true, p_role: 'staff' })
   const float = opts.openFloat ?? 10000
-  const day = await rpc(db, admin, 'open_business_day', { p_float: float, p_denoms: null, p_date: '2026-10-10' })
-  const products = await query<{ id: string; name: string; price: number }>(db, admin, `select id, name, price from products order by sort_order`)
-  return { admin, alice, bob, day, oden: products[0] }
+  const day = await rpc(db, ADMIN, 'open_business_day', { p_float: float, p_denoms: null, p_date: '2026-10-10' })
+  const products = await query<{ id: string; name: string; price: number }>(db, ADMIN, `select id, name, price from products order by sort_order`)
+  return { admin: ADMIN, alice: ALICE, bob: BOB, day, oden: products[0] }
 }
 
-export async function addProduct(db: Db, admin: string, name: string, price: number, sort = 20) {
-  return rpc<{ id: string; name: string; price: number }>(db, admin, 'upsert_product', {
+export async function addProduct(db: Db, who: string, name: string, price: number, sort = 200) {
+  return rpc<{ id: string; name: string; price: number }>(db, who, 'upsert_product', {
     p_id: null, p_name: name, p_price: price, p_category: 'drink', p_sort_order: sort, p_visible: true,
   })
 }

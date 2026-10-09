@@ -8,7 +8,6 @@ import { DenomCounter } from './DenomCounter'
 /** 営業開始(釣銭登録) / レジ締め(金種別の枚数入力 → 理論残高との過不足) */
 export function DayControl() {
   const { snapshot, api, toast } = useApp()
-  const me = snapshot!.me!
   const day = snapshot!.day
   const balance = snapshot!.balance ?? 0
   const [counts, setCounts] = useState<DenomCounts>({})
@@ -17,8 +16,6 @@ export function DayControl() {
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  const isAdmin = me.role === 'admin'
 
   async function open() {
     setBusy(true)
@@ -66,14 +63,6 @@ export function DayControl() {
   }
 
   if (!day) {
-    if (!isAdmin) {
-      return (
-        <div className="card">
-          <div className="h2">営業は開始されていません</div>
-          <p className="hint">管理者が営業開始すると会計できます。</p>
-        </div>
-      )
-    }
     const startDisabled = busy || (useCounter ? denomsTotal(counts) === 0 : amount === '')
     return (
       <div className="card stack">
@@ -114,7 +103,7 @@ export function DayControl() {
         <span className="chip good">営業中</span>
       </div>
       <div className="hint">開始 {day.opened_by_name ?? ''} / 釣銭 {yen(day.opening_float)}</div>
-      {isAdmin ? (
+      {(
         <>
           <div className="h3" style={{ margin: 0 }}>レジ締め(現金箱の実際の枚数を入力)</div>
           <DenomCounter counts={counts} onChange={setCounts} />
@@ -141,8 +130,6 @@ export function DayControl() {
             {busy ? '処理中…' : '営業を終了してレジを締める'}
           </button>
         </>
-      ) : (
-        <p className="hint" style={{ margin: 0 }}>レジ締めは管理者が行います。</p>
       )}
     </div>
   )

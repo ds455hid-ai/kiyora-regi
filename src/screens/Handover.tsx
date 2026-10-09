@@ -7,8 +7,7 @@ import { useApp } from '../store'
 type Filter = 'pending' | 'served' | 'all'
 
 export function Handover() {
-  const { snapshot, api, toast, patchOrder } = useApp()
-  const me = snapshot!.me!
+  const { snapshot, api, toast, patchOrder, staffName } = useApp()
   const orders = snapshot!.orders ?? []
   const [view, setView] = useState<'orders' | 'history'>('orders')
   const [filter, setFilter] = useState<Filter>('pending')
@@ -196,7 +195,7 @@ export function Handover() {
             })}
           </div>
         )}
-        <div className="hint" style={{ textAlign: 'center' }}>ログイン中: {me.display_name} / すべての端末の注文がリアルタイムで表示されます</div>
+        <div className="hint" style={{ textAlign: 'center' }}>担当: {staffName} / すべての端末の注文がリアルタイムで表示されます</div>
       </div>
     </div>
   )

@@ -7,7 +7,6 @@ import { useApp } from '../store'
 
 export function Sales() {
   const { snapshot, api, toast, patchOrder } = useApp()
-  const isAdmin = snapshot!.me!.role === 'admin'
   const day = snapshot!.day
   const orders = snapshot!.orders ?? []
   const [summary, setSummary] = useState<SalesSummary | null>(null)
@@ -23,13 +22,12 @@ export function Sales() {
   }, [api, snapshot!.orders, day?.id])
 
   useEffect(() => {
-    if (!isAdmin) return
     let alive = true
     api.salesByDay().then((d) => alive && setDays(d)).catch(() => undefined)
     return () => {
       alive = false
     }
-  }, [api, isAdmin, snapshot!.orders, snapshot!.day, snapshot!.balance])
+  }, [api, snapshot!.orders, snapshot!.day, snapshot!.balance])
 
   async function voidOrder(id: string, no: number) {
     const reason = window.prompt(`No.${orderNo(no)} を取り消して全額返金します。\n理由(任意)を入力してください。`, '')
@@ -102,7 +100,7 @@ export function Sales() {
   return (
     <div className="screen">
       <div className="stack">
-        {!day && <div className="card muted">営業中の日がありません。{isAdmin ? '過去の営業日は下の一覧から確認できます。' : ''}</div>}
+        {!day && <div className="card muted">営業中の日がありません。過去の営業日は下の一覧から確認できます。</div>}
 
         {day && summary && (
           <>
@@ -157,7 +155,7 @@ export function Sales() {
                       <div className="num" style={{ fontWeight: 900, textDecoration: o.status === 'voided' ? 'line-through' : 'none' }}>{yen(o.total)}</div>
                       {o.status === 'voided'
                         ? <span className="chip warn">返金済み</span>
-                        : isAdmin && <button className="btn sm danger" style={{ marginTop: 4 }} disabled={busy === o.id} onClick={() => void voidOrder(o.id, o.order_no)}>取消・返金</button>}
+                        : <button className="btn sm danger" style={{ marginTop: 4 }} disabled={busy === o.id} onClick={() => void voidOrder(o.id, o.order_no)}>取消・返金</button>}
                     </div>
                   </div>
                 ))}
@@ -166,7 +164,7 @@ export function Sales() {
           </>
         )}
 
-        {isAdmin && (
+        {(
           <div className="card">
             <div className="row between" style={{ marginBottom: 8 }}>
               <h3 style={{ margin: 0 }}>営業日別 売上・現金過不足</h3>

@@ -1,14 +1,15 @@
 import {
-  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode,
+  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode,
 } from 'react'
 import { makeApi, READ_ONLY_RPCS, type Api } from './lib/api'
-import { loadBackend, type Backend, type SessionInfo, type SyncStatus } from './lib/backend'
+import { loadBackend, type Backend, type SyncStatus } from './lib/backend'
 import { IS_CONFIGURED } from './lib/env'
 import { AppError } from './lib/errors'
+import { getStaffName, subscribeStaffName } from './lib/staff'
 import type { Order, Snapshot } from './lib/types'
 
 export type Conn = 'online' | 'degraded' | 'offline'
-export type Phase = 'loading' | 'unconfigured' | 'anon' | 'error' | 'pending' | 'ready'
+export type Phase = 'loading' | 'unconfigured' | 'needname' | 'error' | 'ready'
 export type ToastKind = 'info' | 'ok' | 'error'
 
 interface Toast {
@@ -20,7 +21,7 @@ interface Toast {
 interface Ctx {
   phase: Phase
   backend: Backend | null
-  session: SessionInfo | null
+  staffName: string
   snapshot: Snapshot | null
   conn: Conn
   api: Api
@@ -28,7 +29,6 @@ interface Ctx {
   patchOrder: (o: Order) => void
   toast: (text: string, kind?: ToastKind) => void
   toasts: Toast[]
-  signOut: () => Promise<void>
 }
 
 const AppContext = createContext<Ctx | null>(null)
@@ -42,7 +42,7 @@ export function useApp(): Ctx {
 export function AppProvider({ children }: { children: ReactNode }) {
   const [backend, setBackend] = useState<Backend | null>(null)
   const [booted, setBooted] = useState(false)
-  const [session, setSession] = useState<SessionInfo | null>(null)
+  const staffName = useSyncExternalStore(subscribeStaffName, getStaffName)
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('connecting')
   const [online, setOnline] = useState(() => navigator.onLine)
@@ -57,36 +57,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const syncRef = useRef<SyncStatus>('connecting')
   const failedRef = useRef(false)
 
+  syncRef.current = syncStatus
+  failedRef.current = refreshFailed
+
   const toast = useCallback((text: string, kind: ToastKind = 'info') => {
     const id = ++toastId.current
     setToasts((t) => [...t.slice(-3), { id, text, kind }])
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), kind === 'error' ? 6000 : 3200)
   }, [])
 
-  syncRef.current = syncStatus
-  failedRef.current = refreshFailed
-
-  // ---- バックエンド読み込み & セッション ----
+  // ---- バックエンド読み込み ----
   useEffect(() => {
     if (!IS_CONFIGURED) {
       setBooted(true)
       return
     }
-    let off: (() => void) | undefined
     let cancelled = false
-    void (async () => {
-      const b = await loadBackend()
+    void loadBackend().then((b) => {
       if (cancelled) return
       setBackend(b)
-      setSession(await b.auth.getSession())
-      off = b.auth.onChange(() => {
-        void b.auth.getSession().then((s) => !cancelled && setSession(s))
-      })
       setBooted(true)
-    })()
+    })
     return () => {
       cancelled = true
-      off?.()
     }
   }, [])
 
@@ -103,11 +96,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setSnapshot(s)
         lastOk.current = Date.now()
         setRefreshFailed(false)
-      } catch (e) {
-        if (e instanceof AppError && e.network) setRefreshFailed(true)
-        else if (e instanceof AppError && (e.code === 'forbidden' || /jwt|permission denied/i.test(e.code))) {
-          setSnapshot(null)
-        } else setRefreshFailed(true)
+      } catch {
+        setRefreshFailed(true)
       } finally {
         inflight.current = null
         if (rerun.current) {
@@ -125,12 +115,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     debounce.current = setTimeout(() => void refresh(), 150)
   }, [refresh])
 
-  // ---- ログイン中: 初回取得 + リアルタイム購読 + 再接続時の再取得 ----
+  // ---- 名前を入れたら: 初回取得 + リアルタイム購読 + 再接続時の再取得 ----
+  const active = !!backend && staffName !== ''
   useEffect(() => {
-    if (!backend || !session) {
-      setSnapshot(null)
-      return
-    }
+    if (!backend || !active) return
     void refresh()
     const unsub = backend.subscribe(scheduleRefresh, setSyncStatus)
 
@@ -159,7 +147,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('offline', onOffline)
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [backend, session, refresh, scheduleRefresh])
+  }, [backend, active, refresh, scheduleRefresh])
+
+  // 名前を変えたら、表示中の「担当」を最新にする
+  useEffect(() => {
+    if (active) void refresh()
+  }, [staffName, active, refresh])
 
   const conn: Conn = !online || refreshFailed ? 'offline' : syncStatus === 'connected' ? 'online' : 'degraded'
 
@@ -199,21 +192,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  const signOut = useCallback(async () => {
-    await backend?.auth.signOut()
-    setSnapshot(null)
-  }, [backend])
-
   let phase: Phase
   if (!booted) phase = 'loading'
   else if (!IS_CONFIGURED) phase = 'unconfigured'
-  else if (!session) phase = 'anon'
+  else if (staffName === '') phase = 'needname'
   else if (!snapshot) phase = refreshFailed ? 'error' : 'loading'
-  else if (!snapshot.me || !snapshot.me.active) phase = 'pending'
   else phase = 'ready'
 
-  const value: Ctx = {
-    phase, backend, session, snapshot, conn, api, refresh, patchOrder, toast, toasts, signOut,
-  }
+  const value: Ctx = { phase, backend, staffName, snapshot, conn, api, refresh, patchOrder, toast, toasts }
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
 }

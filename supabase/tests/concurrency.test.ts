@@ -15,13 +15,13 @@ let server: EmbeddedPostgres
 let dir: string
 let pool: pg.Pool
 
-/** PostgREST と同じ: RPC 1 回 = 1 トランザクション(set local role + JWT の sub) */
-async function call<T = any>(uid: string, fn: string, args: Record<string, unknown> = {}): Promise<T> {
+/** PostgREST と同じ: RPC 1 回 = 1 トランザクション(set local role anon + x-staff-name ヘッダー) */
+async function call<T = any>(who: string, fn: string, args: Record<string, unknown> = {}): Promise<T> {
   const client = await pool.connect()
   try {
     await client.query('begin')
-    await client.query('set local role authenticated')
-    await client.query(`select set_config('request.jwt.claim.sub', $1, true)`, [uid])
+    await client.query('set local role anon')
+    await client.query(`select set_config('request.headers', $1, true)`, [JSON.stringify({ 'x-staff-name': encodeURIComponent(who) })])
     const keys = Object.keys(args)
     const params = keys.map((k, i) => `${k} => $${i + 1}`).join(', ')
     const values = keys.map((k) => {
@@ -46,23 +46,10 @@ async function admin<T = any>(sql: string, params: unknown[] = []): Promise<T[]>
   return (await pool.query(sql, params)).rows as T[]
 }
 
-async function signUp(name: string): Promise<string> {
-  const id = randomUUID()
-  await admin(`insert into auth.users (id, email, raw_user_meta_data) values ($1, $2, $3::jsonb)`, [id, `${name}@x.test`, JSON.stringify({ display_name: name })])
-  return id
-}
-
 async function newWorld(openFloat = 20000) {
   await admin('truncate public.audit_log, public.serve_events, public.cash_events, public.order_items, public.orders, public.business_days restart identity cascade')
-  await admin(`delete from public.profiles`)
-  await admin(`delete from auth.users`)
-  const boss = await signUp('店長')
-  const staff: string[] = []
-  for (const n of ['A', 'B', 'C', 'D']) {
-    const id = await signUp(n)
-    await call(boss, 'admin_update_staff', { p_user: id, p_active: true, p_role: 'staff' })
-    staff.push(id)
-  }
+  const boss = '店長'
+  const staff = ['A', 'B', 'C', 'D']
   await call(boss, 'open_business_day', { p_float: openFloat, p_denoms: null, p_date: '2026-10-10' })
   const [oden] = await admin<{ id: string }>(`select id from public.products order by sort_order limit 1`)
   return { boss, staff, oden }
@@ -70,7 +57,11 @@ async function newWorld(openFloat = 20000) {
 
 beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), 'kiyora-pg-'))
-  server = new EmbeddedPostgres({ databaseDir: dir, user: 'postgres', password: 'password', port: PORT, persistent: false })
+  // 本番(Supabase)と同じ UTF8 で作る(日本語のスタッフ名・商品名を扱うため)
+  server = new EmbeddedPostgres({
+    databaseDir: dir, user: 'postgres', password: 'password', port: PORT, persistent: false,
+    initdbFlags: ['--encoding=UTF8', '--locale=C'],
+  })
   await server.initialise()
   await server.start()
   await server.createDatabase('pos')

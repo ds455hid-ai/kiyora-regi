@@ -12,7 +12,6 @@ const MAX_RECEIVED = 9_999_999
 
 export function Register({ goto }: { goto: (tab: string) => void }) {
   const { snapshot, api, toast, patchOrder, conn } = useApp()
-  const me = snapshot!.me!
   const day = snapshot!.day
   const allProducts = snapshot!.products ?? []
   const products = useMemo(() => allProducts.filter((p) => p.visible), [allProducts])
@@ -105,9 +104,9 @@ export function Register({ goto }: { goto: (tab: string) => void }) {
         <div className="card stack">
           <div className="h2">営業が開始されていません</div>
           <p style={{ margin: 0 }}>
-            {me.role === 'admin' ? '「管理」画面から営業開始(釣銭の登録)を行ってください。' : '管理者が営業を開始すると会計できるようになります。'}
+            「管理」画面から営業開始(釣銭の登録)を行ってください。
           </p>
-          {me.role === 'admin' && <button className="btn primary" onClick={() => goto('admin')}>管理画面へ</button>}
+          <button className="btn primary" onClick={() => goto('admin')}>管理画面へ</button>
         </div>
       </div>
     )

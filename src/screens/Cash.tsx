@@ -16,7 +16,6 @@ const KIND_LABEL: Record<CashKind, string> = {
 
 export function Cash() {
   const { snapshot, api, toast } = useApp()
-  const isAdmin = snapshot!.me!.role === 'admin'
   const day = snapshot!.day
   const balance = snapshot!.balance ?? 0
   const totals = snapshot!.cash_totals ?? {}
@@ -66,7 +65,7 @@ export function Cash() {
           </div>
         )}
 
-        {day && isAdmin && (
+        {day && (
           <div className="card stack">
             <h3 style={{ margin: 0 }}>現金の補充・回収</h3>
             <div className="seg" role="group" aria-label="種類">

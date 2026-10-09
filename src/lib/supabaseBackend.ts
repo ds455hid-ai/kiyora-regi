@@ -1,9 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
-import type { Backend, SessionInfo, SyncStatus } from './backend'
+import type { Backend, SyncStatus } from './backend'
 import { AppError } from './errors'
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './env'
+import { getStaffName } from './staff'
 
-const TABLES = ['products', 'business_days', 'orders', 'order_items', 'serve_events', 'cash_events', 'profiles'] as const
+const TABLES = ['products', 'business_days', 'orders', 'order_items', 'serve_events', 'cash_events'] as const
 
 function isNetworkError(err: { message?: string; name?: string; status?: number } | null | undefined): boolean {
   if (!err) return false
@@ -21,46 +22,22 @@ function isNetworkError(err: { message?: string; name?: string; status?: number 
   )
 }
 
+/** すべてのリクエストに担当者名(x-staff-name, パーセントエンコード)を付ける */
+const fetchWithStaffName: typeof fetch = (input, init) => {
+  const headers = new Headers(init?.headers)
+  const name = getStaffName()
+  if (name) headers.set('x-staff-name', encodeURIComponent(name))
+  return fetch(input, { ...init, headers })
+}
+
 export function createSupabaseBackend(): Backend {
   const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    global: { fetch: fetchWithStaffName },
   })
 
   return {
     kind: 'supabase',
-    auth: {
-      async getSession(): Promise<SessionInfo | null> {
-        const { data } = await client.auth.getSession()
-        const s = data.session
-        return s ? { userId: s.user.id, email: s.user.email ?? undefined } : null
-      },
-      async signIn(email, password) {
-        const { error } = await client.auth.signInWithPassword({ email, password })
-        if (error) {
-          if (isNetworkError(error)) throw new AppError('network', undefined, true)
-          throw new AppError('auth_failed', error.message)
-        }
-      },
-      async signUp(email, password, displayName) {
-        const { data, error } = await client.auth.signUp({
-          email,
-          password,
-          options: { data: { display_name: displayName } },
-        })
-        if (error) {
-          if (isNetworkError(error)) throw new AppError('network', undefined, true)
-          throw new AppError('signup_failed', error.message)
-        }
-        return { signedIn: !!data.session }
-      },
-      async signOut() {
-        await client.auth.signOut()
-      },
-      onChange(cb) {
-        const { data } = client.auth.onAuthStateChange(() => cb())
-        return () => data.subscription.unsubscribe()
-      },
-    },
 
     async rpc<T>(fn: string, args: Record<string, unknown> = {}): Promise<T> {
       let res

@@ -59,9 +59,6 @@ export function makeApi(rpc: Rpc) {
     deleteProduct: (id: string) => rpc('delete_product', { p_id: id }),
     setSoldOut: (id: string, soldOut: boolean) => rpc('set_sold_out', { p_product: id, p_sold_out: soldOut }),
 
-    updateStaff: (userId: string, active: boolean, role: 'admin' | 'staff', displayName: string | null = null) =>
-      rpc('admin_update_staff', { p_user: userId, p_active: active, p_role: role, p_display_name: displayName }),
-
     salesSummary: (dayId: string | null = null) => rpc<SalesSummary>('sales_summary', { p_day: dayId }),
     salesByDay: () => rpc<DayRow[]>('sales_by_day'),
     dayDetail: (dayId: string) =>
