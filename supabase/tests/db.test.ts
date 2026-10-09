@@ -225,7 +225,7 @@ describe('会計(注文確定・連番・冪等)', () => {
     expect(rows).toEqual([
       { name: 'おでん(5個入り)', price: 500 },
       { name: 'コーヒー', price: 300 },
-      { name: 'カフェラテ', price: 300 },
+      { name: 'カフェラテ', price: 400 },
       { name: '紅茶', price: 300 },
       { name: 'ゆず蜂蜜', price: 300 },
       { name: 'ココア', price: 300 },
