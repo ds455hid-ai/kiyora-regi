@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { addProduct, as, createDb, query, queryError, rpc, rpcError, seedWorld, signUp, uuid, type Db } from './harness'
+import { addProduct, createDb, query, queryError, rpc, rpcError, seedWorld, signUp, uuid, type Db } from './harness'
 
 let db: Db
 beforeEach(async () => {
