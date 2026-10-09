@@ -7,6 +7,21 @@
 
 ---
 
+## 現在の状態(2026-10-09 時点・設定済み)
+
+- Supabase プロジェクト **`kiyora-regi`**(東京・無料プラン)を作成し、データベース(`001_init.sql`)を設定済みです。
+  Project URL: `https://lgnmnitzrnjecxmgatsl.supabase.co`
+- 「Confirm email」は OFF、匿名ログインは OFF、Site URL は公開URLに設定済みです。
+- 初期商品: おでん(5個入り)500円 / コーヒー・カフェラテ・紅茶・ゆず蜂蜜・ココア 各300円 / ぜんざい400円
+- 以前から Supabase に存在した別プロジェクト `festival-pos` には **一切手を付けていません**(別の POS 用テーブルが残っています。不要なら Supabase の Project Settings から削除してください)。
+- 公開済み: https://ds455hid-ai.github.io/kiyora-regi/
+
+### 必ず最初にやること
+**あなた自身が、公開URLで最初に「新規登録」してください。最初の登録者だけが管理者になります。**
+もし別の人に先に登録されてしまった場合は、Supabase の **Authentication → Users** でその人を削除し、もう一度あなたが登録してください。
+
+---
+
 ## A. はじめに 1 回だけ行う設定(約15分)
 
 ### 1. Supabase のプロジェクトを作る
