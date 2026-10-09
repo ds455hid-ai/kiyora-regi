@@ -2,12 +2,10 @@ import { PGlite } from '@electric-sql/pglite'
 import { readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 
-const MIGRATION = readFileSync(new URL('../migrations/001_init.sql', import.meta.url), 'utf8')
+export const MIGRATION = readFileSync(new URL('../migrations/001_init.sql', import.meta.url), 'utf8')
 
-/** Supabase と同等のロール / auth スキーマ / デフォルト権限を用意して、本番と同じ SQL を流す */
-export async function createDb() {
-  const db = new PGlite()
-  await db.exec(`
+/** Supabase と同等のロール / auth スキーマ / デフォルト権限(本番と同じ SQL を流す前の下準備) */
+export const SUPABASE_STUB_SQL = `
     create role anon nologin;
     create role authenticated nologin;
     create role service_role nologin bypassrls;
@@ -31,7 +29,11 @@ export async function createDb() {
     alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
     alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
     alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
-  `)
+`
+
+export async function createDb() {
+  const db = new PGlite()
+  await db.exec(SUPABASE_STUB_SQL)
   await db.exec(MIGRATION)
   return db
 }

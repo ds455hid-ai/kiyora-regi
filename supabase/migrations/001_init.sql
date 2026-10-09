@@ -301,6 +301,14 @@ begin
    where o.id = p_order;
 end $$;
 
+-- ロック順序は全 RPC で「営業日の行 → 注文 → 明細」に統一する(デッドロック防止)。
+-- 提供系は営業日の行を FOR SHARE で取る(提供どうしは並列、会計/返金/締めとは直列)。
+create or replace function public._lock_day_shared(p_day uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  perform 1 from public.business_days where id = p_day for share;
+end $$;
+
 -- 金種(許可する額面)
 create or replace function public._denoms_total(p_denoms jsonb)
 returns integer language plpgsql immutable as $$
@@ -568,14 +576,16 @@ returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   v_me public.profiles;
   v_order_id uuid;
+  v_day_id uuid;
   v_order public.orders;
   v_item public.order_items;
 begin
   v_me := public._require_staff();
-  select order_id into v_order_id from public.order_items where id = p_item;
+  select i.order_id, i.business_day_id into v_order_id, v_day_id from public.order_items i where i.id = p_item;
   if not found then raise exception 'item_not_found'; end if;
 
-  -- ロック順序: 注文 → 明細
+  -- ロック順序: 営業日 → 注文 → 明細
+  perform public._lock_day_shared(v_day_id);
   select * into v_order from public.orders where id = v_order_id for update;
   select * into v_item from public.order_items where id = p_item for update;
 
@@ -611,14 +621,17 @@ create or replace function public.serve_order(p_order uuid)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   v_me public.profiles;
+  v_day_id uuid;
   v_order public.orders;
   v_item record;
   v_changed integer := 0;
   v_prev_by text;
 begin
   v_me := public._require_staff();
-  select * into v_order from public.orders where id = p_order for update;
+  select business_day_id into v_day_id from public.orders where id = p_order;
   if not found then raise exception 'order_not_found'; end if;
+  perform public._lock_day_shared(v_day_id);
+  select * into v_order from public.orders where id = p_order for update;
   if v_order.status <> 'paid' then raise exception 'order_voided'; end if;
   if not exists (select 1 from public.business_days where id = v_order.business_day_id and status = 'open') then
     raise exception 'day_closed';
@@ -651,12 +664,15 @@ create or replace function public.unserve_order(p_order uuid)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   v_me public.profiles;
+  v_day_id uuid;
   v_order public.orders;
   v_item record;
 begin
   v_me := public._require_staff();
-  select * into v_order from public.orders where id = p_order for update;
+  select business_day_id into v_day_id from public.orders where id = p_order;
   if not found then raise exception 'order_not_found'; end if;
+  perform public._lock_day_shared(v_day_id);
+  select * into v_order from public.orders where id = p_order for update;
   if v_order.status <> 'paid' then raise exception 'order_voided'; end if;
   if not exists (select 1 from public.business_days where id = v_order.business_day_id and status = 'open') then
     raise exception 'day_closed';
@@ -751,7 +767,7 @@ begin
     perform public._audit(v_me, 'product_create', 'product', v_row.id,
       jsonb_build_object('name', v_row.name, 'price', v_row.price));
   else
-    select * into v_before from public.products where id = p_id for update;
+    select * into v_before from public.products where id = p_id for no key update;
     if not found then raise exception 'product_not_found'; end if;
     update public.products
        set name = btrim(p_name), price = p_price, category = p_category,
@@ -807,7 +823,7 @@ declare
 begin
   v_me := public._require_admin();
   perform pg_advisory_xact_lock(7321001);
-  select * into v_before from public.profiles where id = p_user for update;
+  select * into v_before from public.profiles where id = p_user for no key update;
   if not found then raise exception 'staff_not_found'; end if;
   if p_role not in ('admin', 'staff') then raise exception 'invalid_role'; end if;
   if p_display_name is not null
