@@ -35,6 +35,8 @@
 2. **Authentication** → **URL Configuration** の **Site URL** に
    `https://ds455hid-ai.github.io/kiyora-regi/` を入れて Save します。
 
+> 初期商品(あとから「管理 → 商品」で変更・追加できます): おでん(5個入り)500円 / コーヒー・カフェラテ・紅茶・ゆず蜂蜜・ココア 各300円 / ぜんざい400円
+
 ### 4. 接続情報(2 つ)を Claude に伝える
 
 **Project Settings**(左下の歯車)→ **API Keys**(または **Data API**)で、次の 2 つをコピーして Claude に送ってください。

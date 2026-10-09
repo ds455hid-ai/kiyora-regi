@@ -1057,5 +1057,11 @@ end $$;
 -- 14. 初期商品(管理画面で変更・追加できます)
 -- ---------------------------------------------------------------------
 
-insert into public.products (name, price, category, sort_order)
-values ('おでん(5個入り)', 500, 'food', 10);
+insert into public.products (name, price, category, sort_order) values
+  ('おでん(5個入り)', 500, 'food', 10),
+  ('コーヒー', 300, 'drink', 20),
+  ('カフェラテ', 300, 'drink', 30),
+  ('紅茶', 300, 'drink', 40),
+  ('ゆず蜂蜜', 300, 'drink', 50),
+  ('ココア', 300, 'drink', 60),
+  ('ぜんざい', 400, 'food', 70);

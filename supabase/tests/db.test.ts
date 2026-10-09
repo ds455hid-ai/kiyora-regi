@@ -102,7 +102,7 @@ describe('営業日・現金', () => {
     const admin = await signUp(db, '店長')
     const alice = await signUp(db, 'アリス')
     await rpc(db, admin, 'admin_update_staff', { p_user: alice, p_active: true, p_role: 'staff' })
-    const [oden] = await query(db, admin, `select id from products`)
+    const [oden] = await query(db, admin, `select id from products order by sort_order`)
     expect((await rpcError(db, alice, 'create_order', { p_request_id: uuid(), p_items: items(oden), p_received: 500 }))?.message).toBe('no_open_day')
     await rpc(db, admin, 'open_business_day', { p_float: 5000, p_denoms: null, p_date: '2026-10-10' })
     expect((await rpcError(db, admin, 'open_business_day', { p_float: 5000, p_denoms: null, p_date: '2026-10-11' }))?.message).toBe('day_already_open')

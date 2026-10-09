@@ -89,15 +89,13 @@ export async function createMockBackend(): Promise<MockBackend> {
     return withUser(uid, async () => (await db.query<{ r: T }>(`select public.${fn}(${params}) as r`, values)).rows[0].r)
   }
 
-  // ---- 初期データ: 管理者 1 + スタッフ 2、営業日 1(釣銭 10,000 円)、ドリンク少々 ----
+  // ---- 初期データ: 管理者 1 + スタッフ 2、営業日 1(釣銭 10,000 円)、 ----
   // ID を固定して、ホットリロードで DB が作り直されてもログイン状態が壊れないようにする
   const adminId = await addUser('店長', 'admin@mock.test', '00000000-0000-4000-8000-000000000001')
   const aliceId = await addUser('アリス', 'alice@mock.test', '00000000-0000-4000-8000-000000000002')
   const bobId = await addUser('ボブ', 'bob@mock.test', '00000000-0000-4000-8000-000000000003')
   await rpcAs(adminId, 'admin_update_staff', { p_user: aliceId, p_active: true, p_role: 'staff', p_display_name: null })
   await rpcAs(adminId, 'admin_update_staff', { p_user: bobId, p_active: true, p_role: 'staff', p_display_name: null })
-  await rpcAs(adminId, 'upsert_product', { p_id: null, p_name: 'お茶', p_price: 150, p_category: 'drink', p_sort_order: 20, p_visible: true })
-  await rpcAs(adminId, 'upsert_product', { p_id: null, p_name: 'ビール', p_price: 500, p_category: 'drink', p_sort_order: 30, p_visible: true })
   await rpcAs(adminId, 'open_business_day', { p_float: 10000, p_denoms: null, p_date: null })
 
   let loseResponses = 0
