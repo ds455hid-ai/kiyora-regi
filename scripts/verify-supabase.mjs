@@ -104,8 +104,10 @@ async function main() {
   check('同時に返金しても返金は 1 回だけ', voidVals.filter((v) => !v.already_voided).length === 1)
   const after = await rpc(A, 'app_snapshot')
   const paid = after.orders.filter((o) => o.status === 'paid').reduce((s, o) => s + o.total, 0)
-  const refund = -(after.cash_totals.refund ?? 0)
-  check('残高 = 釣銭 + 売上 − 返金 + 補充 − 回収', after.balance === after.day.opening_float + paid - refund + (after.cash_totals.replenish ?? 0) + (after.cash_totals.collect ?? 0), `残高 ${after.balance}`)
+  const ct = after.cash_totals
+  // 返金済みの注文は paid に含まれないので、返金額をもう一度引かない
+  check('残高 = 釣銭 + 有効な売上 + 補充 − 回収', after.balance === after.day.opening_float + paid + (ct.replenish ?? 0) + (ct.collect ?? 0), `残高 ${after.balance}`)
+  check('現金売上 + 返金(マイナス) = 有効な売上', (ct.sale ?? 0) + (ct.refund ?? 0) === paid)
   check('別の端末でも同じ残高が見える', (await rpc(B, 'app_snapshot')).balance === after.balance)
 
   console.log('\n== 5. リアルタイム同期(端末Bが端末Aの会計を受信) ==')
