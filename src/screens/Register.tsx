@@ -78,6 +78,7 @@ export function Register({ goto }: { goto: (tab: string) => void }) {
       setDone(res.order)
       reset()
       if (res.duplicate) toast('この会計はすでに登録済みでした(二重登録は防止されました)', 'info')
+      else if (res.order.total !== payload.total) toast(`価格が更新されていたため、合計が ${yen(res.order.total)} になりました。おつりは画面の金額をご確認ください`, 'error')
     } catch (e) {
       if (e instanceof AppError && e.network) {
         setError('通信エラー: この会計が登録されたかどうか確認できていません。電波の良い場所で「再送」を押してください(同じ会計は二重登録されません)')
